@@ -58,3 +58,11 @@ The health endpoint returns 503 if PostgreSQL is unavailable. UI fetch errors re
 Roll back the web service to the prior successful image for an application regression. Do not automatically reverse database migrations. This initial migration only creates tables; future schema changes should remain compatible with the prior app during rollout. Restore a backup into a separate database first, validate it, then change DATABASE_URL if recovery is needed.
 
 A shared clinic login offers no individual staff audit trail. Session expiry is seven days; successful password changes and operator resets invalidate existing sessions. Login is limited to 15 attempts per 15 minutes across the clinic to resist distributed guesses.
+
+## Build caching
+
+The Dockerfile scopes the npm download cache to dashboard service `2d4f728b-5223-47a2-993e-a6df1088e463` using Railway's required literal cache mount ID. If moving this Dockerfile to a different Railway service, update the ID. Package installation remains a separate layer keyed on package.json/package-lock.json. Source-only changes can reuse that layer; when it must run again, npm prefers the cached package downloads.
+
+The first build after introducing the cache still has to populate it. This does not guarantee a 15-second deployment: registry/network time, runner allocation, image export and health checks remain outside application compilation.
+
+The production image contains the built app, production dependencies and operational scripts, excluding test tools, project documentation, and Next build cache. Prisma and tsx remain available for migrations/account setup. OpenSSL is installed for Prisma's engine. Auditing runs separately (`npm audit`), rather than as a network request during each image build.

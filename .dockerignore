@@ -11,3 +11,13 @@ test-results
 *.log
 *.tsbuildinfo
 generated
+docs
+references
+tests
+AGENTS.md
+CLAUDE.md
+README.md
+PRE-CLAUDE project config.md
+protect-project-secrets.ps1
+playwright.config.ts
+vitest.config.ts

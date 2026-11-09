@@ -12,3 +12,7 @@ Completed against an isolated local PostgreSQL 18 database:
 Browser screenshots: test-results/overview-desktop.png, overview-mobile.png, analytics-desktop.png, detail-mobile.png. These are local, gitignored test artifacts.
 
 Not verified externally: Railway deployment, DNS/TLS, Railway backup/restore, live Vapi assistant payloads and call delivery. These require the owner's infrastructure and the finished assistant. The integration is exercised with representative synthetic payloads; no real client data or secrets were used.
+
+## Build packaging follow-up
+
+Production build, typecheck, 8 unit tests and dependency audit passed after optimizing the Dockerfile. An isolated copy with development dependencies pruned successfully ran Prisma migration, account creation, health check, browser login, dashboard data loading and logout. The Docker daemon is not accessible in this environment, so the actual image build and Railway cache reuse must be confirmed on Railway.
