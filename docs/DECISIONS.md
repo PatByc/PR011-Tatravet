@@ -10,7 +10,7 @@ Host the web service, scheduled Vapi reconciliation, and PostgreSQL on Railway. 
 
 ## Accepted — authenticated link sharing
 
-The copy-link action shares the normal panel URL. Users still log in; no access tokens or passwords appear in the URL. Store Argon2id password hashes and opaque hashed sessions in PostgreSQL.
+The copy-link action shares the normal panel URL. Users still log in; no access tokens or passwords appear in the URL. Store Argon2id password hashes and opaque hashed sessions in PostgreSQL. Login persists across browser restarts for three days from sign-in, with matching cookie and database expiry; logout and password changes revoke access earlier.
 
 ## Accepted — limited call data and durable follow-up
 

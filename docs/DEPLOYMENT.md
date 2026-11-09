@@ -58,7 +58,7 @@ The health endpoint returns 503 if PostgreSQL is unavailable. UI fetch errors re
 
 Roll back the web service to the prior successful image for an application regression. Do not automatically reverse database migrations. This initial migration only creates tables; future schema changes should remain compatible with the prior app during rollout. Restore a backup into a separate database first, validate it, then change DATABASE_URL if recovery is needed.
 
-A shared clinic login offers no individual staff audit trail. Session expiry is seven days; successful password changes and operator resets invalidate existing sessions. Login is limited to 15 attempts per 15 minutes across the clinic to resist distributed guesses.
+A shared clinic login offers no individual staff audit trail. Session expiry is three days from login (including the persistent browser cookie); successful password changes and operator resets invalidate existing sessions. Login is limited to 15 attempts per 15 minutes across the clinic to resist distributed guesses.
 
 ## Build caching
 

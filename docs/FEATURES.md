@@ -3,7 +3,7 @@
 ## Implemented and locally verified
 
 - Polish responsive dashboard using Tatravet colors and self-hosted Poppins.
-- Shared clinic login, password change, session expiry/revocation and operator account recovery.
+- Shared clinic login, password change, persistent three-day login sessions and revocation and operator account recovery.
 - Deployment startup checks for required variables and sanitized database error codes in server logs.
 - Searchable, paginated call history and transcript/detail view.
 - Callback queue, editable internal notes and conflict detection.

@@ -27,7 +27,7 @@ export async function requireUser() {
 }
 export async function createSession(userId: string) {
   const token = randomBytes(32).toString("base64url");
-  const expires = new Date(Date.now() + 7 * 86400_000);
+  const expires = new Date(Date.now() + 3 * 86400_000);
   await db.session.create({
     data: { tokenHash: digest(token), userId, expiresAt: expires },
   });
