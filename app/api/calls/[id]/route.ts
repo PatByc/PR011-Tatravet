@@ -38,7 +38,7 @@ export async function PATCH(request: Request, context: Context) {
     const { revision, ...data } = parsed.data;
     const result = await db.call.updateMany({
       where: { id: call.id, revision },
-      data: { ...data, revision: { increment: 1 } },
+      data: { ...data, followUpReviewed: true, revision: { increment: 1 } },
     });
     if (!result.count)
       throw new HttpError(

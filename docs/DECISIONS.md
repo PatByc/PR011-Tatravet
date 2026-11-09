@@ -18,7 +18,11 @@ Store transcripts, available summaries and call metadata, excluding recordings a
 
 ## Accepted — one contact reason per call
 
-Read Vapi's named structured output `Tatravet Contact Reason` (or legacy analysis structured data) using eight fixed codes. Store one main reason on each call and count missing or invalid values as unknown. Keep the ending-reason chart separate; classification does not imply a booked appointment or medical triage.
+Read Vapi's live `PR011 Tatravet — Powód kontaktu` output and the earlier `Tatravet Contact Reason` format using eight fixed categories. Store one main reason on each call and count missing or invalid values as unknown. Keep the ending-reason chart separate; classification does not imply a booked appointment or medical triage.
+
+## Accepted — automatic callback triage with staff override
+
+Set `Do oddzwonienia` when the EOCR has an explicit assistant callback promise or a structured `wymagaOddzwonienia: true` result. A contact reason by itself is insufficient. Mark staff changes as reviewed so later provider events cannot undo them. Never infer `Załatwione` automatically.
 
 ## Accepted — cache dependency layers and trim production packaging
 

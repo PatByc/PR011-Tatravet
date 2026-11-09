@@ -37,6 +37,7 @@ model Call {
   contactReason String?
   sourceUpdatedAt DateTime
   followUp String @default("NONE")
+  followUpReviewed Boolean @default(false)
   note String @default("")
   revision Int @default(0)
   isDemo Boolean @default(false)

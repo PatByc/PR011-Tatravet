@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { normalizeCall, mergeCall, vapiCallSchema } from "./calls";
+import { callbackRequired, normalizeCall, mergeCall, vapiCallSchema } from "./calls";
 export const assistantIds = () =>
   (process.env.VAPI_ASSISTANT_IDS || "")
     .split(",")
@@ -9,15 +9,21 @@ export async function ingestCall(raw: unknown) {
   const call = vapiCallSchema.parse(raw);
   if (!assistantIds().includes(call.assistantId)) return false;
   const normalized = normalizeCall(call);
+  const needsCallback = callbackRequired(call);
   await db.$transaction(async (tx) => {
     // Serialize webhook and cron writes for the same call, including its first insert.
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${call.id}))::text`;
     const existing = await tx.call.findUnique({ where: { id: call.id } });
     const data = existing ? mergeCall(existing, normalized) : normalized;
+    const followUp = existing?.followUpReviewed
+      ? existing.followUp
+      : needsCallback || existing?.followUp === "CALLBACK"
+        ? "CALLBACK"
+        : "NONE";
     await tx.call.upsert({
       where: { id: call.id },
-      create: data,
-      update: data,
+      create: { ...data, followUp },
+      update: { ...data, followUp },
     });
   });
   return true;

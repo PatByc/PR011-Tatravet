@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  callbackRequired,
   normalizeCall,
   mergeCall,
   terminationCategory,
@@ -73,6 +74,24 @@ describe("Vapi ingestion rules", () => {
     const call = normalizeCall(parsed);
     expect(call.contactReason).toBe("appointment");
     expect(call).not.toHaveProperty("opisPowodu");
+  });
+  it("marks an explicit assistant callback promise from the end-of-call transcript", () => {
+    const call = vapiCallSchema.parse({
+      ...source,
+      transcript: "User: Proszę o termin.\nAI: Recepcja oddzwoni, jak tylko będzie mogła.",
+    });
+    expect(callbackRequired(call)).toBe(true);
+    expect(callbackRequired(vapiCallSchema.parse({ ...source, transcript: "User: Czy recepcja oddzwoni?\nAI: Dziękuję za rozmowę." }))).toBe(false);
+  });
+  it("uses an explicit Vapi callback decision when provided", () => {
+    const call = vapiCallSchema.parse({
+      ...source,
+      artifact: { structuredOutputs: {
+        output: { name: "PR011 Tatravet — Powód kontaktu", result: { wymagaOddzwonienia: true } },
+      } },
+    });
+    expect(callbackRequired(call)).toBe(true);
+    expect(callbackRequired(vapiCallSchema.parse({ ...source, analysis: { structuredData: { wymagaOddzwonienia: false } }, transcript: "AI: Recepcja oddzwoni." }))).toBe(false);
   });
   it("fills missing transcript from delayed report and excludes staff-owned fields", () => {
     const old = {

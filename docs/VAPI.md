@@ -38,6 +38,12 @@ The existing Vapi output `PR011 Tatravet — Powód kontaktu` is supported. Its 
 
 Vapi can finish structured extraction after the first end-of-call event. Check the `end-of-call-report` request in Vapi Webhook Logs to confirm it contains `message.artifact.structuredOutputs` (or `message.call.artifact.structuredOutputs`). Missing or unrecognized output is counted as `Nieustalony powód`. Old stored calls do not retain the original structured output, so changing the parser does not classify them retroactively. For the already observed real call, find its Vapi call ID in Vapi Logs and run `npm run classify:call -- <call-id> appointment` in the Railway app shell. This updates exactly that real call and does not require an API key or scheduled sync. Future calls classify from the webhook automatically when it contains the output.
 
+## Callback queue from the end-of-call report
+
+The call's `Obsługa` status starts as `Bez działania`. When the EOCR transcript contains an explicit assistant promise that the clinic will call back (for example `AI: Recepcja oddzwoni...`), ingestion marks the call `Do oddzwonienia`. The same result can be provided more reliably as a boolean `wymagaOddzwonienia` in the existing Vapi structured output. A contact reason such as `Umówienie wizyty` alone does not imply a callback. Staff edits are marked reviewed and never replaced by subsequent Vapi deliveries. The importer never automatically marks a case `Załatwione`.
+
+After deploying the migration, run `npm run backfill:callbacks` once in the Railway app shell to evaluate already stored real-call transcripts. It only changes unreviewed `Bez działania` calls with an explicit assistant callback promise; it does not read Vapi or send any data outside Railway.
+
 Source: [Vapi structured outputs](https://docs.vapi.ai/assistants/structured-outputs).
 
 Sources: [Vapi events](https://docs.vapi.ai/server-url/events), [server credentials](https://docs.vapi.ai/server-url/server-authentication), [server URL setup](https://docs.vapi.ai/server-url/setting-server-urls).

@@ -1,0 +1,1 @@
+ALTER TABLE "Call" ADD COLUMN "followUpReviewed" BOOLEAN NOT NULL DEFAULT false;
