@@ -13,6 +13,7 @@
     "db:migrate": "prisma migrate deploy",
     "account": "tsx scripts/account.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
+    "classify:call": "tsx scripts/classify-call.ts",
     "sync": "tsx scripts/sync.ts"
   },
   "keywords": [],

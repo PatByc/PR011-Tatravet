@@ -11,18 +11,25 @@ export const contactReasons = {
 } as const;
 export type ContactReason = keyof typeof contactReasons;
 function validReason(value: unknown): ContactReason | null {
-  return typeof value === "string" && Object.hasOwn(contactReasons, value)
-    ? (value as ContactReason)
-    : null;
+  if (typeof value !== "string") return null;
+  if (Object.hasOwn(contactReasons, value)) return value as ContactReason;
+  const label = value.trim().toLocaleLowerCase("pl-PL");
+  const entry = Object.entries(contactReasons).find(([, name]) =>
+    name.toLocaleLowerCase("pl-PL") === label,
+  );
+  return (entry?.[0] as ContactReason | undefined) || null;
+}
+function resultReason(result: { contactReason?: unknown; powodKontaktu?: unknown } | null | undefined) {
+  return validReason(result?.powodKontaktu) || validReason(result?.contactReason);
 }
 function extractedReason(call: VapiCall): ContactReason | null {
-  const direct = validReason(call.analysis?.structuredData?.contactReason);
+  const direct = resultReason(call.analysis?.structuredData);
   if (direct) return direct;
   const outputs = call.artifact?.structuredOutputs;
   if (!outputs) return null;
   for (const output of Object.values(outputs)) {
-    if (output.name === "Tatravet Contact Reason") {
-      const reason = validReason(output.result?.contactReason);
+    if (output.name === "Tatravet Contact Reason" || output.name === "PR011 Tatravet — Powód kontaktu") {
+      const reason = resultReason(output.result);
       if (reason) return reason;
     }
   }
@@ -43,12 +50,12 @@ export const vapiCallSchema = z.object({
     transcript: z.string().nullish(),
     structuredOutputs: z.record(z.string(), z.object({
       name: z.string().optional(),
-      result: z.object({ contactReason: z.unknown().optional() }).passthrough().nullish(),
+      result: z.object({ contactReason: z.unknown().optional(), powodKontaktu: z.unknown().optional() }).passthrough().nullish(),
     }).passthrough()).nullish(),
   }).nullish(),
   analysis: z.object({
     summary: z.string().nullish(),
-    structuredData: z.object({ contactReason: z.unknown().optional() }).passthrough().nullish(),
+    structuredData: z.object({ contactReason: z.unknown().optional(), powodKontaktu: z.unknown().optional() }).passthrough().nullish(),
   }).nullish(),
 });
 export type VapiCall = z.infer<typeof vapiCallSchema>;

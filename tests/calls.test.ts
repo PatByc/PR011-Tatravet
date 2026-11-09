@@ -60,6 +60,20 @@ describe("Vapi ingestion rules", () => {
     expect(mergeCall(classified, normalizeCall(source)).contactReason).toBe("appointment");
     expect(normalizeCall(vapiCallSchema.parse({ ...source, analysis: { structuredData: { contactReason: "invalid" } } })).contactReason).toBeNull();
   });
+  it("reads the actual Polish structured output without storing its free-text description", () => {
+    const parsed = vapiCallSchema.parse({
+      ...source,
+      artifact: { structuredOutputs: {
+        "2a36db92-72dd-418c-a73d-c7effcdfeab6": {
+          name: "PR011 Tatravet — Powód kontaktu",
+          result: { opisPowodu: "przykładowy opis", powodKontaktu: "Umówienie wizyty" },
+        },
+      } },
+    });
+    const call = normalizeCall(parsed);
+    expect(call.contactReason).toBe("appointment");
+    expect(call).not.toHaveProperty("opisPowodu");
+  });
   it("fills missing transcript from delayed report and excludes staff-owned fields", () => {
     const old = {
       ...normalizeCall({

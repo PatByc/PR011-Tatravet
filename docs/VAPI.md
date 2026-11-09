@@ -23,23 +23,20 @@ Apply/deploy the variable changes. Keep PUBLIC_URL matching the address used to 
 
 ## Contact reasons in analytics
 
-Create a Vapi structured output named exactly `Tatravet Contact Reason` and attach its ID to the saved assistant's `artifactPlan.structuredOutputIds` (preserve any existing IDs). Use this JSON schema:
+The existing Vapi output `PR011 Tatravet — Powód kontaktu` is supported. Its `result.powodKontaktu` may contain one of the Polish labels below; `result.opisPowodu` is not needed by the chart and is not stored. The older output `Tatravet Contact Reason` with `result.contactReason` codes remains supported. Do not rename or recreate the live output just for the dashboard.
 
-```json
-{
-  "type": "object",
-  "properties": {
-    "contactReason": {
-      "type": "string",
-      "enum": ["appointment", "appointment_change", "animal_health", "services_prices", "test_results", "clinic_info", "other", "unknown"],
-      "description": "One main reason for the call. appointment: book a visit; appointment_change: change or cancel; animal_health: pet health question; services_prices: services or prices; test_results: test results or ongoing treatment; clinic_info: opening hours, location or preparation; other: another clear topic; unknown: silence, interrupted or insufficient information."
-    }
-  },
-  "required": ["contactReason"]
-}
-```
+| Vapi `powodKontaktu` | Dashboard category |
+| --- | --- |
+| Umówienie wizyty | Umówienie wizyty |
+| Zmiana lub odwołanie wizyty | Zmiana lub odwołanie wizyty |
+| Zdrowie zwierzęcia | Zdrowie zwierzęcia |
+| Usługi i ceny | Usługi i ceny |
+| Wyniki badań i leczenie | Wyniki badań i leczenie |
+| Informacje o przychodni | Informacje o przychodni |
+| Inne | Inne |
+| Nieustalony powód | Nieustalony powód |
 
-The dashboard accepts that output from `call.artifact.structuredOutputs`, or `call.analysis.structuredData.contactReason` for older analysis setups. It only accepts these exact codes. Missing/invalid output is counted as `Nieustalony powód`. Vapi may deliver analysis after the first end-of-call event; verify a classified call in webhook logs before relying on the chart. Existing calls need a new report to be classified. Demo calls can be updated with `npm run seed:demo` after migration.
+Vapi can finish structured extraction after the first end-of-call event. Check the `end-of-call-report` request in Vapi Webhook Logs to confirm it contains `message.artifact.structuredOutputs` (or `message.call.artifact.structuredOutputs`). Missing or unrecognized output is counted as `Nieustalony powód`. Old stored calls do not retain the original structured output, so changing the parser does not classify them retroactively. For the already observed real call, find its Vapi call ID in Vapi Logs and run `npm run classify:call -- <call-id> appointment` in the Railway app shell. This updates exactly that real call and does not require an API key or scheduled sync. Future calls classify from the webhook automatically when it contains the output.
 
 Source: [Vapi structured outputs](https://docs.vapi.ai/assistants/structured-outputs).
 
