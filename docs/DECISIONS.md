@@ -27,3 +27,7 @@ Production startup must have PUBLIC_URL and a resolved PostgreSQL DATABASE_URL. 
 ## Accepted — webhook-only Vapi connection
 
 The owner declined scheduled synchronization. Connect the saved Vapi assistant directly with authenticated status-update/end-of-call-report webhooks. No Vapi API key or cron service is required. Connection indicators use webhook configuration and last receipt, without treating an idle phone line as a failed sync. Historical backfill is outside this selected setup.
+
+## Accepted — simple Railway start override
+
+Use `npm start` in Railway, preserving migrations as a separate pre-deploy step. Railway's Docker start override uses exec form; a bare `&&` does not chain commands. Runtime diagnostics remain available as a manual command and in the Docker default CMD.

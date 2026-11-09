@@ -4,7 +4,7 @@
 
 Create a Railway project with PostgreSQL and one application service from this repository:
 
-1. **Dashboard:** configuration file `/railway.json`. Docker build, pre-deploy `npm run db:migrate`, start `node scripts/check-runtime.mjs && npm start`, health check `/api/health`.
+1. **Dashboard:** configuration file `/railway.json`. Docker build, pre-deploy `npm run db:migrate`, start `npm start`, health check `/api/health`.
    The selected Vapi integration uses webhooks only. Do not create the cron service. The legacy sync configuration is not needed.
 
 Use a European Railway region for both app and database. Keep PostgreSQL private; app services use the database's internal `DATABASE_URL` reference. Configure daily backups on the PostgreSQL volume and test restoration to a separate database before launch.
@@ -70,4 +70,8 @@ The production image contains the built app, production dependencies and operati
 
 ## Runtime diagnostics
 
-The web container checks PUBLIC_URL and DATABASE_URL before starting. Missing variables or an unresolved database reference stop startup with the affected variable names. Successful validation logs only the public origin and a database-configured boolean, never the database URL/password. This validates configuration shape, not database connectivity. Health/request failures include sanitized Prisma/database error codes without SQL, driver messages or credentials. Use the codes to distinguish connectivity errors from missing migrations.
+The Docker image default command checks PUBLIC_URL and DATABASE_URL before starting. Railway uses the simple `npm start` override; run `node scripts/check-runtime.mjs` manually inside the service when diagnosing variables. Missing variables or an unresolved database reference stop startup with the affected variable names. Successful validation logs only the public origin and a database-configured boolean, never the database URL/password. This validates configuration shape, not database connectivity. Health/request failures include sanitized Prisma/database error codes without SQL, driver messages or credentials. Use the codes to distinguish connectivity errors from missing migrations.
+
+## Railway start command
+
+Use `npm start` for Custom Start Command. Docker-based Railway overrides run in exec form, so do not put bare shell operators such as `&&` in that field. The former compound diagnostic/start override could exit after the diagnostic script without starting Next.js. Keep `npm run db:migrate` in Pre-deploy Command, and `/api/health` as Healthcheck Path.

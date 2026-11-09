@@ -20,3 +20,7 @@ Production build, typecheck, 8 unit tests and dependency audit passed after opti
 ## Railway cache validation correction
 
 Railway rejected the service-specific cache mount before build execution. Removed all Dockerfile cache mounts and retained standard dependency-layer caching, production pruning and OpenSSL. This correction is verified by inspecting the resulting Dockerfile and whitespace checks; Railway must confirm the deployment outcome.
+
+## Railway startup correction
+
+Replaced the compound Railway start override with `npm start` after verifying Railway's Docker overrides use exec form. Checked the JSON configuration and referenced npm script. Application code and dependencies are unchanged; actual service recovery must be verified after redeployment.
