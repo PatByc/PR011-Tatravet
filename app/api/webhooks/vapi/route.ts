@@ -26,7 +26,7 @@ export async function POST(request: Request) {
       ...(message.analysis ? { analysis: message.analysis } : {}),
       ...(message.endedReason ? { endedReason: message.endedReason } : {}),
     };
-    const accepted = await ingestCall(raw);
+    const accepted = await ingestCall(raw, message.type === "end-of-call-report");
     if (accepted)
       await db.syncState.upsert({
         where: { id: "vapi" },

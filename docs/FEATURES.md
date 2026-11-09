@@ -11,7 +11,7 @@ The analytics tab groups each call by one structured contact reason supplied by 
 - Deployment startup checks for required variables and sanitized database error codes in server logs.
 - Searchable, paginated call history and transcript/detail view.
 - Callback queue, editable internal notes and conflict detection.
-- Automatic callback queue entry from explicit EOCR assistant promises or a structured Vapi callback flag; staff decisions take precedence.
+- Automatic callback queue entry only from the EOCR structured `wymagaOddzwonienia: true` flag; staff decisions take precedence.
 - Daily/hourly analytics with Warsaw timezone handling.
 - Copy dashboard link and integration status.
 - Authenticated Vapi webhook ingestion, assistant allowlist, duplicate-safe updates and webhook receipt status. Scheduled reconciliation is not part of the selected setup.

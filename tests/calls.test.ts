@@ -75,12 +75,12 @@ describe("Vapi ingestion rules", () => {
     expect(call.contactReason).toBe("appointment");
     expect(call).not.toHaveProperty("opisPowodu");
   });
-  it("marks an explicit assistant callback promise from the end-of-call transcript", () => {
+  it("does not infer callback status from the transcript", () => {
     const call = vapiCallSchema.parse({
       ...source,
       transcript: "User: Proszę o termin.\nAI: Recepcja oddzwoni, jak tylko będzie mogła.",
     });
-    expect(callbackRequired(call)).toBe(true);
+    expect(callbackRequired(call)).toBe(false);
     expect(callbackRequired(vapiCallSchema.parse({ ...source, transcript: "User: Czy recepcja oddzwoni?\nAI: Dziękuję za rozmowę." }))).toBe(false);
   });
   it("uses an explicit Vapi callback decision when provided", () => {
@@ -92,6 +92,7 @@ describe("Vapi ingestion rules", () => {
     });
     expect(callbackRequired(call)).toBe(true);
     expect(callbackRequired(vapiCallSchema.parse({ ...source, analysis: { structuredData: { wymagaOddzwonienia: false } }, transcript: "AI: Recepcja oddzwoni." }))).toBe(false);
+    expect(callbackRequired(vapiCallSchema.parse(source))).toBe(false);
   });
   it("fills missing transcript from delayed report and excludes staff-owned fields", () => {
     const old = {

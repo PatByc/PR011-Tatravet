@@ -7,6 +7,9 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -53,6 +56,16 @@ type Detail = Call & {
   endedAt: string | null;
   summary: string | null;
   endedReason: string | null;
+};
+const reasonColors: Record<string, string> = {
+  appointment: "#4e9c2c",
+  appointment_change: "#8dbd6a",
+  animal_health: "#2f7564",
+  services_prices: "#d6a94e",
+  test_results: "#4f8eae",
+  clinic_info: "#adc9ac",
+  other: "#8a9b8b",
+  unknown: "#c8cdc4",
 };
 type Tab = "overview" | "calls" | "analytics" | "settings";
 const tabs = [
@@ -552,12 +565,30 @@ export default function Dashboard({
                       <section className="panel reasons-panel">
                         <h2>Powody kontaktu</h2>
                         <p className="section-description">Główny temat każdej rozmowy w wybranym okresie</p>
-                        {data.reasons.length ? data.reasons.map((item) => (
-                          <div className="ending-row" key={item.key}>
-                            <div><span>{item.name}</span><strong>{item.value}</strong></div>
-                            <progress aria-label={item.name} value={item.value} max={data.metrics.count} />
+                        {data.reasons.length ? (
+                          <div className="reason-breakdown">
+                            <div className="reason-pie" role="img" aria-label={`Powody kontaktu: ${data.reasons.map((item) => `${item.name}: ${item.value} (${Math.round(item.value / data.metrics.count * 100)}%)`).join(", ")}`}>
+                              <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                  <Pie data={data.reasons} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={104} stroke="#fff" strokeWidth={2} isAnimationActive={false}>
+                                    {data.reasons.map((item) => <Cell key={item.key} fill={reasonColors[item.key]} />)}
+                                  </Pie>
+                                  <Tooltip formatter={(value, name) => [`${value} połączeń`, name]} />
+                                </PieChart>
+                              </ResponsiveContainer>
+                            </div>
+                            <ul className="reason-legend">
+                              {data.reasons.map((item) => (
+                                <li key={item.key}>
+                                  <span className="reason-swatch" style={{ backgroundColor: reasonColors[item.key] }} aria-hidden="true" />
+                                  <span className="reason-name">{item.name}</span>
+                                  <strong>{Math.round(item.value / data.metrics.count * 100)}%</strong>
+                                  <span className="reason-count">{item.value}</span>
+                                </li>
+                              ))}
+                            </ul>
                           </div>
-                        )) : <Empty title="Brak powodów kontaktu" text="Wybierz okres z połączeniami." />}
+                        ) : <Empty title="Brak powodów kontaktu" text="Wybierz okres z połączeniami." />}
                       </section>
                       <section className="panel">
                         <h2>Godziny największego ruchu</h2>

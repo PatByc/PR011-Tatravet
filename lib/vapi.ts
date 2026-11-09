@@ -5,7 +5,7 @@ export const assistantIds = () =>
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-export async function ingestCall(raw: unknown) {
+export async function ingestCall(raw: unknown, endOfCallReport = false) {
   const call = vapiCallSchema.parse(raw);
   if (!assistantIds().includes(call.assistantId)) return false;
   const normalized = normalizeCall(call);
@@ -17,9 +17,9 @@ export async function ingestCall(raw: unknown) {
     const data = existing ? mergeCall(existing, normalized) : normalized;
     const followUp = existing && (existing.followUpReviewed || existing.revision > 0)
       ? existing.followUp
-      : needsCallback || existing?.followUp === "CALLBACK"
-        ? "CALLBACK"
-        : "NONE";
+      : endOfCallReport
+        ? needsCallback ? "CALLBACK" : "NONE"
+        : existing?.followUp || "NONE";
     await tx.call.upsert({
       where: { id: call.id },
       create: { ...data, followUp },

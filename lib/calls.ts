@@ -35,14 +35,6 @@ function extractedReason(call: VapiCall): ContactReason | null {
   }
   return null;
 }
-export function assistantPromisedCallback(transcript: string | null | undefined): boolean {
-  if (!transcript) return false;
-  const lines = transcript.split(/\r?\n/);
-  return lines.some((line) => {
-    const match = line.match(/^\s*(?:AI|Asystent|Assistant)\s*:\s*(.*)$/i);
-    return !!match && /(?:\boddzwonimy\b|\b(?:recepcja|przychodnia|personel|lekarz|zespół)\b.{0,100}\boddzwoni\b|\b(?:zapiszę|przekażę)\b.{0,70}\bprośbę o kontakt\b)/i.test(match[1]);
-  });
-}
 export function callbackRequired(call: VapiCall): boolean {
   const direct = call.analysis?.structuredData?.wymagaOddzwonienia;
   if (typeof direct === "boolean") return direct;
@@ -53,7 +45,7 @@ export function callbackRequired(call: VapiCall): boolean {
       if (typeof value === "boolean") return value;
     }
   }
-  return assistantPromisedCallback(call.artifact?.transcript || call.transcript);
+  return false;
 }
 export const vapiCallSchema = z.object({
   id: z.string().min(1).max(200),

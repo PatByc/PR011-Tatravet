@@ -40,9 +40,9 @@ Vapi can finish structured extraction after the first end-of-call event. Check t
 
 ## Callback queue from the end-of-call report
 
-The call's `Obsługa` status starts as `Bez działania`. When the EOCR transcript contains an explicit assistant promise that the clinic will call back (for example `AI: Recepcja oddzwoni...`), ingestion marks the call `Do oddzwonienia`. The same result can be provided more reliably as a boolean `wymagaOddzwonienia` in the existing Vapi structured output. A contact reason such as `Umówienie wizyty` alone does not imply a callback. Staff edits are marked reviewed and never replaced by subsequent Vapi deliveries. The importer never automatically marks a case `Załatwione`.
+Add a required boolean `wymagaOddzwonienia` to the existing `PR011 Tatravet — Powód kontaktu` structured output schema. Define it as `true` only when the caller needs the clinic to call them back after this conversation; otherwise `false`. The EOCR handler sets `Obsługa` to `Do oddzwonienia` only for `true`; `false` or a missing field means `Bez działania`. Status updates do not reclassify. The contact reason and transcript are not used to decide. Staff edits take precedence over later EOCR deliveries, and only staff can mark a case `Załatwione`.
 
-After deploying the migration, run `npm run backfill:callbacks` once in the Railway app shell to evaluate already stored real-call transcripts. It only changes unreviewed `Bez działania` calls with an explicit assistant callback promise; it does not read Vapi or send any data outside Railway.
+The output already saved for earlier calls lacks this boolean, so those calls stay `Bez działania` unless staff changes them. No backfill command is needed.
 
 Source: [Vapi structured outputs](https://docs.vapi.ai/assistants/structured-outputs).
 

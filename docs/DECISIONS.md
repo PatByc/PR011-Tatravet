@@ -22,7 +22,7 @@ Read Vapi's live `PR011 Tatravet — Powód kontaktu` output and the earlier `Ta
 
 ## Accepted — automatic callback triage with staff override
 
-Set `Do oddzwonienia` when the EOCR has an explicit assistant callback promise or a structured `wymagaOddzwonienia: true` result. A contact reason by itself is insufficient. Mark staff changes as reviewed so later provider events cannot undo them. Never infer `Załatwione` automatically.
+Set `Do oddzwonienia` only when the EOCR has structured `wymagaOddzwonienia: true`; otherwise use `Bez działania`. The contact reason and transcript do not affect this status. Mark staff changes as reviewed so later provider events cannot undo them. Only staff can mark `Załatwione`.
 
 ## Accepted — cache dependency layers and trim production packaging
 
