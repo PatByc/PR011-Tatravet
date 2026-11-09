@@ -10,7 +10,7 @@
 - Copy dashboard link and integration status.
 - Authenticated Vapi webhook ingestion, assistant allowlist, duplicate-safe updates and scheduled reconciliation.
 - PostgreSQL migration, isolated demo fixtures, Docker and Railway configuration.
-- Service-scoped npm download cache and a production image excluding development tools and build cache.
+- Source-independent dependency layer and a production image excluding development tools and build cache.
 
 ## Awaiting external setup
 

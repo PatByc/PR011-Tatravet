@@ -61,8 +61,8 @@ A shared clinic login offers no individual staff audit trail. Session expiry is 
 
 ## Build caching
 
-The Dockerfile scopes the npm download cache to dashboard service `2d4f728b-5223-47a2-993e-a6df1088e463` using Railway's required literal cache mount ID. If moving this Dockerfile to a different Railway service, update the ID. Package installation remains a separate layer keyed on package.json/package-lock.json. Source-only changes can reuse that layer; when it must run again, npm prefers the cached package downloads.
+Package installation is a separate Docker layer keyed on package.json/package-lock.json. Source-only changes can reuse that layer when Railway retains it. There is no service-specific cache mount: the previous mount was removed after Railway rejected the Dockerfile during validation. A cold or invalidated dependency layer downloads packages again.
 
-The first build after introducing the cache still has to populate it. This does not guarantee a 15-second deployment: registry/network time, runner allocation, image export and health checks remain outside application compilation.
+No fixed deployment time is guaranteed: registry/network time, runner allocation, image export and health checks remain outside application compilation.
 
 The production image contains the built app, production dependencies and operational scripts, excluding test tools, project documentation, and Next build cache. Prisma and tsx remain available for migrations/account setup. OpenSSL is installed for Prisma's engine. Auditing runs separately (`npm audit`), rather than as a network request during each image build.

@@ -16,3 +16,7 @@ Not verified externally: Railway deployment, DNS/TLS, Railway backup/restore, li
 ## Build packaging follow-up
 
 Production build, typecheck, 8 unit tests and dependency audit passed after optimizing the Dockerfile. An isolated copy with development dependencies pruned successfully ran Prisma migration, account creation, health check, browser login, dashboard data loading and logout. The Docker daemon is not accessible in this environment, so the actual image build and Railway cache reuse must be confirmed on Railway.
+
+## Railway cache validation correction
+
+Railway rejected the service-specific cache mount before build execution. Removed all Dockerfile cache mounts and retained standard dependency-layer caching, production pruning and OpenSSL. This correction is verified by inspecting the resulting Dockerfile and whitespace checks; Railway must confirm the deployment outcome.

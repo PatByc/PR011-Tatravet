@@ -9,8 +9,7 @@ RUN apt-get update \
 FROM base AS dependencies
 COPY package.json package-lock.json ./
 # Keep dependency installation independent of application source changes.
-RUN --mount=type=cache,id=s/2d4f728b-5223-47a2-993e-a6df1088e463-/root/.npm,target=/root/.npm \
-    npm ci --prefer-offline --no-audit --no-fund
+RUN npm ci --no-audit --no-fund
 
 FROM dependencies AS build
 COPY . .
