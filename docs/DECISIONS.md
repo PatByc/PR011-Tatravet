@@ -19,3 +19,7 @@ Store transcripts, available summaries and call metadata, excluding recordings a
 ## Accepted — cache dependency layers and trim production packaging
 
 Keep dependency layers independent of source edits and omit development tools/build caches from the runtime image. The service-specific npm cache mount was removed after Railway rejected the Dockerfile; use standard layer caching until the service's accepted cache configuration can be verified. Preserve Prisma migrations and account setup commands. Use a JavaScript Next config so runtime startup does not depend on a TypeScript config compiler. Cold builds still need downloads; no fixed deployment time is promised.
+
+## Accepted — explicit runtime configuration
+
+Production startup must have PUBLIC_URL and a resolved PostgreSQL DATABASE_URL. Fail early instead of serving an app with the localhost fallback. Operational logs expose only sanitized error codes and non-secret configuration status. Database connection strings, driver messages and query text remain excluded.

@@ -4,7 +4,7 @@
 
 Create a Railway project with PostgreSQL and two services from this repository:
 
-1. **Dashboard:** configuration file `/railway.json`. Docker build, pre-deploy `npm run db:migrate`, start `npm start`, health check `/api/health`.
+1. **Dashboard:** configuration file `/railway.json`. Docker build, pre-deploy `npm run db:migrate`, start `node scripts/check-runtime.mjs && npm start`, health check `/api/health`.
 2. **Call synchronization:** configuration file `/railway.cron.json`. Same Docker image/source, start `npm run sync`, cron `*/15 * * * *`. No public domain, health check, or pre-deploy command on this service. Create/enable it after the web migration succeeds and Vapi is configured. It exits after each run.
 
 Use a European Railway region for both app and database. Keep PostgreSQL private; app services use the database's internal `DATABASE_URL` reference. Configure daily backups on the PostgreSQL volume and test restoration to a separate database before launch.
@@ -66,3 +66,7 @@ Package installation is a separate Docker layer keyed on package.json/package-lo
 No fixed deployment time is guaranteed: registry/network time, runner allocation, image export and health checks remain outside application compilation.
 
 The production image contains the built app, production dependencies and operational scripts, excluding test tools, project documentation, and Next build cache. Prisma and tsx remain available for migrations/account setup. OpenSSL is installed for Prisma's engine. Auditing runs separately (`npm audit`), rather than as a network request during each image build.
+
+## Runtime diagnostics
+
+The web container checks PUBLIC_URL and DATABASE_URL before starting. Missing variables or an unresolved database reference stop startup with the affected variable names. Successful validation logs only the public origin and a database-configured boolean, never the database URL/password. This validates configuration shape, not database connectivity. Health/request failures include sanitized Prisma/database error codes without SQL, driver messages or credentials. Use the codes to distinguish connectivity errors from missing migrations.

@@ -1,3 +1,4 @@
+import { logFailure } from "./diagnostics";
 import { NextResponse } from "next/server";
 export class HttpError extends Error {
   constructor(
@@ -41,10 +42,7 @@ export function apiError(error: unknown) {
       { error: error.message },
       { status: error.status },
     );
-  console.error(
-    "request_failed",
-    error instanceof Error ? error.name : "UnknownError",
-  );
+  logFailure("request_failed", error);
   return NextResponse.json(
     { error: "Nie udało się wykonać operacji. Spróbuj ponownie." },
     { status: 500 },

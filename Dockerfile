@@ -30,4 +30,4 @@ COPY --from=build --chown=node:node /app/scripts ./scripts
 COPY --from=build --chown=node:node /app/package.json /app/package-lock.json /app/next.config.mjs /app/prisma.config.ts ./
 USER node
 EXPOSE 3000
-CMD ["npm", "start"]
+CMD ["sh", "-c", "node scripts/check-runtime.mjs && exec npm start"]
