@@ -1,3 +1,4 @@
+import { webhookConfigured } from "./integration";
 import { formatInTimeZone } from "date-fns-tz";
 import { db } from "./db";
 import { dayKey, dateRange, ZONE } from "./dates";
@@ -115,12 +116,11 @@ export async function dashboard(params: URLSearchParams) {
     hours,
     endings: Object.entries(endings).map(([name, value]) => ({ name, value })),
     integration: {
-      configured: Boolean(
-        process.env.VAPI_API_KEY && process.env.VAPI_ASSISTANT_IDS,
-      ),
-      lastSuccess: state?.lastSuccess || null,
+      configured: webhookConfigured({
+        VAPI_WEBHOOK_SECRET: process.env.VAPI_WEBHOOK_SECRET,
+        VAPI_ASSISTANT_IDS: process.env.VAPI_ASSISTANT_IDS,
+      }),
       lastWebhook: state?.lastWebhook || null,
-      error: state?.error || false,
     },
     demo,
   };

@@ -1,26 +1,38 @@
-# Connecting the Vapi assistant
+# Connecting the Vapi assistant (webhooks only)
 
-The assistant is still being built. The app can be reviewed with isolated demo fixtures before connection.
+The selected integration sends Vapi events directly to the dashboard. No cron service or VAPI_API_KEY is required.
 
-## Configure
+## Railway dashboard service variables
 
-1. Set VAPI_API_KEY and VAPI_ASSISTANT_IDS in Railway. Use only this clinic's assistant IDs. Set the same values on the cron service.
-2. Generate a random VAPI_WEBHOOK_SECRET of at least 32 characters. Configure a Vapi Custom Credential that sends `Authorization: Bearer <secret>`.
-3. Set the assistant's server URL to `https://liniavet.tatravet.pl/api/webhooks/vapi`, referencing that credential.
-4. Include `status-update` and `end-of-call-report` in server messages. Preserve existing server handlers/tool settings when configuring the assistant; if it already uses a server URL for tools, explicitly route these event types through that existing integration rather than overwriting it blindly.
-5. Ensure the assistant produces transcripts. Summaries are optional and read from `analysis.summary`; no separate model is called by this dashboard.
-6. Enable Railway cron, then make a test call and verify transcript, duration, and caller number where available.
+Attach these to the application service, not just the shared-variable list:
 
-Sources: [Vapi events](https://docs.vapi.ai/server-url/events), [server credentials](https://docs.vapi.ai/server-url/server-authentication), [list calls](https://docs.vapi.ai/api-reference/calls/list).
+- VAPI_ASSISTANT_IDS: the saved Tatravet assistant ID (comma-separated if needed).
+- VAPI_WEBHOOK_SECRET: a random secret of at least 32 characters; generate with `openssl rand -hex 32`.
+- DEMO_MODE: false to show real incoming calls.
 
-## Data boundary
+Apply/deploy the variable changes. Keep PUBLIC_URL matching the address used to open the dashboard.
 
-Only configured assistant IDs are ingested. Webhooks require the bearer credential and have a 2 MB payload limit. Unknown event types are acknowledged without processing. Invalid call shapes return 400; database failures return 500 so they are not mistaken for accepted delivery.
+## Vapi configuration
 
-The adapter stores call ID, assistant ID, available caller number, timestamps, duration, status, termination reason, transcript, and summary. It strips costs, recordings, prompts, tool messages and other unused fields. Notes, follow-up status, and note revision belong to staff and are never overwritten by Vapi updates. PostgreSQL transaction locks serialize duplicate/overlapping imports.
+1. Open Integrations → Server Configuration → Add Custom Credential.
+2. Choose Bearer Token, name it Tatravet Dashboard, paste the generated secret into Token, use Authorization as Header Name, and enable Include Bearer Prefix. Leave optional payload encryption disabled; this endpoint expects ordinary JSON over HTTPS.
+3. Open the saved Tatravet assistant → Advanced → Webhook Server. If a Server URL already handles tools or other business logic, preserve that integration and arrange event forwarding before replacing it.
+4. Set Server URL to `https://pr011-tatravet-production.up.railway.app/api/webhooks/vapi` and select the new credential under Authorization. When the custom domain is ready, this URL can use `https://liniavet.tatravet.pl/api/webhooks/vapi` instead.
+5. Enable status-update and end-of-call-report server messages. Publish the assistant settings. Configure transcript retention in Vapi as needed; summaries are optional and read from analysis.summary.
+6. Make a test call, end it, and check Vapi's webhook delivery logs for a successful response with accepted: true. Refresh the dashboard or allow its 30-second refresh. Inspect the transcript, duration, and caller number when provided.
 
-The first sync fetches records updated within the previous 30 days. Subsequent runs start one hour before the last successful cursor and end at the start of the current run, catching delayed post-call artifacts. API windows reaching 1,000 records are recursively divided instead of assuming sort order or dropping records with the same timestamp. Dense windows that cannot be divided fail visibly without advancing the cursor. API 429/5xx failures are retried; failures preserve the cursor for the next scheduled run.
+Sources: [Vapi events](https://docs.vapi.ai/server-url/events), [server credentials](https://docs.vapi.ai/server-url/server-authentication), [server URL setup](https://docs.vapi.ai/server-url/setting-server-urls).
 
-Records older than the initial window are not automatically backfilled. Call lists refresh every 30 seconds while visible. The daily analytics count calls by their local start date in Warsaw. Missing durations are excluded from averages. Technical termination categories are not booking conversion metrics.
+## Behavior and troubleshooting
 
-For live acceptance, confirm one inbound call, one failed/interrupted call, a missing/withheld caller number if available, and a delayed transcript. Replay a completed report and confirm only one row exists and its staff note is unchanged. Validate these with the finished assistant before production use.
+Only allowlisted assistant IDs are ingested. Credentials use `Authorization: Bearer <secret>`; this is not the Vapi API key. Unknown events are acknowledged without processing. Duplicate delivery updates one call record and preserves staff notes/statuses.
+
+- 401: bearer credential missing or mismatched.
+- 503: webhook secret missing/too short, or another service availability problem; inspect deployment logs.
+- 400: malformed or unsupported call payload; share only a redacted example for diagnosis.
+- 200 with accepted: false: assistant ID does not match the allowlist.
+- Successful delivery but no visible calls: verify DEMO_MODE=false and the selected date range.
+
+The dashboard reports waiting until its first accepted event and then shows the last received time. A quiet phone line does not count as a synchronization failure.
+
+Webhooks store only selected metadata, transcripts, and available summaries. They do not import historic calls. Calls/events never delivered to this endpoint cannot appear automatically. The legacy sync script remains in the repository but is not part of the selected deployment; do not create the cron service.

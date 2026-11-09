@@ -1,4 +1,5 @@
 "use client";
+import { webhookStatus } from "@/lib/integration";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Area,
@@ -197,18 +198,12 @@ export default function Dashboard({
     }
   }
   const integration = data?.integration;
-  const lastSync = integration?.lastSuccess || integration?.lastWebhook;
-  const connection = data?.demo
-    ? "Dane przykładowe"
-    : !integration?.configured
-      ? "Oczekiwanie na integrację"
-      : integration.error
-        ? "Sprawdź synchronizację"
-        : !lastSync
-          ? "Oczekiwanie na dane"
-          : Date.now() - new Date(lastSync).getTime() > 30 * 60000
-            ? "Synchronizacja opóźniona"
-            : "Dane zsynchronizowane";
+  const lastSync = integration?.lastWebhook;
+  const connection = webhookStatus(
+    Boolean(data?.demo),
+    Boolean(integration?.configured),
+    Boolean(lastSync),
+  );
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -599,11 +594,7 @@ export default function Dashboard({
                 )}
                 <footer className="content-footer">
                   <span>
-                    <i
-                      className={
-                        integration?.error ? "status-dot warning" : "status-dot"
-                      }
-                    />
+                    <i className="status-dot" />
                     {connection}
                     {lastSync ? ` · ${dateTime(lastSync)}` : ""}
                   </span>

@@ -23,3 +23,7 @@ Keep dependency layers independent of source edits and omit development tools/bu
 ## Accepted — explicit runtime configuration
 
 Production startup must have PUBLIC_URL and a resolved PostgreSQL DATABASE_URL. Fail early instead of serving an app with the localhost fallback. Operational logs expose only sanitized error codes and non-secret configuration status. Database connection strings, driver messages and query text remain excluded.
+
+## Accepted — webhook-only Vapi connection
+
+The owner declined scheduled synchronization. Connect the saved Vapi assistant directly with authenticated status-update/end-of-call-report webhooks. No Vapi API key or cron service is required. Connection indicators use webhook configuration and last receipt, without treating an idle phone line as a failed sync. Historical backfill is outside this selected setup.

@@ -9,7 +9,7 @@
 - Callback queue, editable internal notes and conflict detection.
 - Daily/hourly analytics with Warsaw timezone handling.
 - Copy dashboard link and integration status.
-- Authenticated Vapi webhook ingestion, assistant allowlist, duplicate-safe updates and scheduled reconciliation.
+- Authenticated Vapi webhook ingestion, assistant allowlist, duplicate-safe updates and webhook receipt status. Scheduled reconciliation is not part of the selected setup.
 - PostgreSQL migration, isolated demo fixtures, Docker and Railway configuration.
 - Source-independent dependency layer and a production image excluding development tools and build cache.
 

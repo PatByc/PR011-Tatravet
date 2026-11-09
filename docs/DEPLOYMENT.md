@@ -2,27 +2,28 @@
 
 ## Services
 
-Create a Railway project with PostgreSQL and two services from this repository:
+Create a Railway project with PostgreSQL and one application service from this repository:
 
 1. **Dashboard:** configuration file `/railway.json`. Docker build, pre-deploy `npm run db:migrate`, start `node scripts/check-runtime.mjs && npm start`, health check `/api/health`.
-2. **Call synchronization:** configuration file `/railway.cron.json`. Same Docker image/source, start `npm run sync`, cron `*/15 * * * *`. No public domain, health check, or pre-deploy command on this service. Create/enable it after the web migration succeeds and Vapi is configured. It exits after each run.
+   The selected Vapi integration uses webhooks only. Do not create the cron service. The legacy sync configuration is not needed.
 
 Use a European Railway region for both app and database. Keep PostgreSQL private; app services use the database's internal `DATABASE_URL` reference. Configure daily backups on the PostgreSQL volume and test restoration to a separate database before launch.
 
 ## Variables
 
-| Variable              | Web | Cron | Value                                         |
-| --------------------- | --- | ---- | --------------------------------------------- |
-| `DATABASE_URL`        | Yes | Yes  | Railway PostgreSQL internal connection string |
-| `PUBLIC_URL`          | Yes | No   | `https://liniavet.tatravet.pl`                |
-| `DEMO_MODE`           | Yes | No   | `false` for real data                         |
-| `VAPI_API_KEY`        | Yes | Yes  | Private server-side Vapi key                  |
-| `VAPI_ASSISTANT_IDS`  | Yes | Yes  | Comma-separated IDs for Tatravet only         |
-| `VAPI_WEBHOOK_SECRET` | Yes | No   | Random bearer token, at least 32 characters   |
+| Variable              | Dashboard value                               |
+| --------------------- | --------------------------------------------- |
+| `DATABASE_URL`        | Railway PostgreSQL internal connection string |
+| `PUBLIC_URL`          | Current public dashboard URL                  |
+| `DEMO_MODE`           | `false` for real calls                        |
+| `VAPI_ASSISTANT_IDS`  | Saved Tatravet assistant ID(s)                |
+| `VAPI_WEBHOOK_SECRET` | Random bearer secret, at least 32 characters  |
+
+No VAPI_API_KEY is required for webhooks.
 
 Railway supplies `PORT`; Next starts on `0.0.0.0`. The image sets production mode, which enables secure cookies. Do not put Vapi credentials in any `NEXT_PUBLIC_*` variable.
 
-If deploying before Vapi is ready, omit its variables and leave the cron service disabled. Login and the empty dashboard still work. No records are fabricated.
+If deploying before Vapi is ready, omit its variables. Login and the empty dashboard still work. No records are fabricated.
 
 ## Shared clinic account
 
@@ -46,14 +47,14 @@ This is direct DNS routing, not a redirect through Vercel. Same-origin APIs requ
 - Account recovery command has been exercised; no bootstrap password remains configured.
 - DEMO_MODE is false; synthetic calls are excluded.
 - Vapi credential and assistant allowlist are configured; test call transcript arrives.
-- Cron has a successful run and the dashboard shows its timestamp.
-- Notes survive the next sync, and restarts preserve sessions and calls.
+- A test webhook has arrived and the dashboard shows its receipt timestamp.
+- Notes survive repeated webhook delivery, and restarts preserve sessions and calls.
 - Daily backups are configured and restoration has been tested.
 - Agree how long call transcripts/notes should be retained before collecting real client data. V1 does not automatically delete records; deletion/retention automation is not implemented.
 
 ## Failure and rollback
 
-The health endpoint returns 503 if PostgreSQL is unavailable. UI fetch errors remain visible; it never silently substitutes fixtures. Logs contain generic failure names, not call payloads, phone numbers, passwords, or transcripts. In Railway, check failed deployments, cron exit status and database availability; the app shows delayed/error synchronization states.
+The health endpoint returns 503 if PostgreSQL is unavailable. UI fetch errors remain visible; it never silently substitutes fixtures. Logs contain generic failure names, not call payloads, phone numbers, passwords, or transcripts. In Railway, check failed deployments and database availability. The app shows webhook readiness and the last received event; verify delivery failures in Vapi logs.
 
 Roll back the web service to the prior successful image for an application regression. Do not automatically reverse database migrations. This initial migration only creates tables; future schema changes should remain compatible with the prior app during rollout. Restore a backup into a separate database first, validate it, then change DATABASE_URL if recovery is needed.
 
