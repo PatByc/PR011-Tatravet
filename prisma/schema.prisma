@@ -1,0 +1,52 @@
+generator client {
+  provider = "prisma-client"
+  output = "../generated/prisma"
+}
+datasource db {
+  provider = "postgresql"
+}
+model User {
+  id String @id @default(cuid())
+  username String @unique
+  passwordHash String
+  sessions Session[]
+}
+model Session {
+  tokenHash String @id
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  @@index([expiresAt])
+}
+model LoginLimit {
+  key String @id
+  attempts Int @default(0)
+  resetAt DateTime
+}
+model Call {
+  id String @id
+  assistantId String
+  caller String?
+  startedAt DateTime
+  endedAt DateTime?
+  duration Int?
+  status String @default("queued")
+  endedReason String?
+  transcript String?
+  summary String?
+  sourceUpdatedAt DateTime
+  followUp String @default("NONE")
+  note String @default("")
+  revision Int @default(0)
+  isDemo Boolean @default(false)
+  updatedAt DateTime @updatedAt
+  @@index([startedAt])
+  @@index([followUp, startedAt])
+}
+model SyncState {
+  id String @id
+  cursor DateTime?
+  lastSuccess DateTime?
+  lastWebhook DateTime?
+  error Boolean @default(false)
+}
