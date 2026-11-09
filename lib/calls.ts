@@ -1,4 +1,33 @@
 import { z } from "zod";
+export const contactReasons = {
+  appointment: "Umówienie wizyty",
+  appointment_change: "Zmiana lub odwołanie wizyty",
+  animal_health: "Zdrowie zwierzęcia",
+  services_prices: "Usługi i ceny",
+  test_results: "Wyniki badań i leczenie",
+  clinic_info: "Informacje o przychodni",
+  other: "Inne",
+  unknown: "Nieustalony powód",
+} as const;
+export type ContactReason = keyof typeof contactReasons;
+function validReason(value: unknown): ContactReason | null {
+  return typeof value === "string" && Object.hasOwn(contactReasons, value)
+    ? (value as ContactReason)
+    : null;
+}
+function extractedReason(call: VapiCall): ContactReason | null {
+  const direct = validReason(call.analysis?.structuredData?.contactReason);
+  if (direct) return direct;
+  const outputs = call.artifact?.structuredOutputs;
+  if (!outputs) return null;
+  for (const output of Object.values(outputs)) {
+    if (output.name === "Tatravet Contact Reason") {
+      const reason = validReason(output.result?.contactReason);
+      if (reason) return reason;
+    }
+  }
+  return null;
+}
 export const vapiCallSchema = z.object({
   id: z.string().min(1).max(200),
   assistantId: z.string().min(1),
@@ -10,8 +39,17 @@ export const vapiCallSchema = z.object({
   endedReason: z.string().nullish(),
   customer: z.object({ number: z.string().max(100).optional() }).nullish(),
   transcript: z.string().nullish(),
-  artifact: z.object({ transcript: z.string().nullish() }).nullish(),
-  analysis: z.object({ summary: z.string().nullish() }).nullish(),
+  artifact: z.object({
+    transcript: z.string().nullish(),
+    structuredOutputs: z.record(z.string(), z.object({
+      name: z.string().optional(),
+      result: z.object({ contactReason: z.unknown().optional() }).passthrough().nullish(),
+    }).passthrough()).nullish(),
+  }).nullish(),
+  analysis: z.object({
+    summary: z.string().nullish(),
+    structuredData: z.object({ contactReason: z.unknown().optional() }).passthrough().nullish(),
+  }).nullish(),
 });
 export type VapiCall = z.infer<typeof vapiCallSchema>;
 export function normalizeCall(call: VapiCall) {
@@ -31,13 +69,14 @@ export function normalizeCall(call: VapiCall) {
     endedReason: call.endedReason || null,
     transcript: call.artifact?.transcript || call.transcript || null,
     summary: call.analysis?.summary || null,
+    contactReason: extractedReason(call),
     sourceUpdatedAt: new Date(call.updatedAt || call.endedAt || call.createdAt),
   };
 }
 export type NormalizedCall = Omit<
   ReturnType<typeof normalizeCall>,
-  "status"
-> & { status: string };
+  "status" | "contactReason"
+> & { status: string; contactReason: string | null };
 const rank: Record<string, number> = {
   scheduled: 0,
   queued: 1,
@@ -67,6 +106,7 @@ export function mergeCall(
     endedReason: base.endedReason || old.endedReason || incoming.endedReason,
     transcript: base.transcript || old.transcript || incoming.transcript,
     summary: base.summary || old.summary || incoming.summary,
+    contactReason: base.contactReason || old.contactReason || incoming.contactReason,
   };
 }
 export function terminationCategory(reason: string | null, status: string) {

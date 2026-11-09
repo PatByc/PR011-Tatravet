@@ -2,7 +2,7 @@ import { webhookConfigured } from "./integration";
 import { formatInTimeZone } from "date-fns-tz";
 import { db } from "./db";
 import { dayKey, dateRange, ZONE } from "./dates";
-import { terminationCategory } from "./calls";
+import { contactReasons, terminationCategory } from "./calls";
 import { HttpError } from "./http";
 import type { Prisma } from "../generated/prisma/client";
 export async function dashboard(params: URLSearchParams) {
@@ -48,6 +48,7 @@ export async function dashboard(params: URLSearchParams) {
     status: true,
     followUp: true,
     summary: true,
+    contactReason: true,
     endedReason: true,
   } as const;
   const [calls, total, metrics, queue, outstanding, state] = await Promise.all([
@@ -66,6 +67,7 @@ export async function dashboard(params: URLSearchParams) {
         duration: true,
         status: true,
         endedReason: true,
+        contactReason: true,
       },
     }),
     db.call.findMany({
@@ -89,6 +91,7 @@ export async function dashboard(params: URLSearchParams) {
     calls: 0,
   }));
   const endings: Record<string, number> = {};
+  const reasons: Record<string, number> = {};
   let seconds = 0,
     measured = 0;
   for (const call of metrics) {
@@ -96,6 +99,9 @@ export async function dashboard(params: URLSearchParams) {
     hours[Number(formatInTimeZone(call.startedAt, ZONE, "H"))].calls++;
     const category = terminationCategory(call.endedReason, call.status);
     endings[category] = (endings[category] || 0) + 1;
+    const reason = call.contactReason && Object.hasOwn(contactReasons, call.contactReason)
+      ? call.contactReason : "unknown";
+    reasons[reason] = (reasons[reason] || 0) + 1;
     if (call.duration !== null) {
       seconds += call.duration;
       measured++;
@@ -115,6 +121,9 @@ export async function dashboard(params: URLSearchParams) {
     daily: Object.entries(daily).map(([date, calls]) => ({ date, calls })),
     hours,
     endings: Object.entries(endings).map(([name, value]) => ({ name, value })),
+    reasons: Object.entries(contactReasons).map(([key, label]) => ({
+      key, name: label, value: reasons[key] || 0,
+    })).filter((item) => item.value > 0),
     integration: {
       configured: webhookConfigured({
         VAPI_WEBHOOK_SECRET: process.env.VAPI_WEBHOOK_SECRET,

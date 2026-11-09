@@ -1,5 +1,9 @@
 # Features
 
+## Contact reasons
+
+The analytics tab groups each call by one structured contact reason supplied by Vapi. Missing classifications appear as “Nieustalony powód”; the call details show the same reason. The existing ending-reason chart remains separate.
+
 ## Implemented and locally verified
 
 - Polish responsive dashboard using Tatravet colors and self-hosted Poppins.

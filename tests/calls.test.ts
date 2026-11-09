@@ -48,6 +48,18 @@ describe("Vapi ingestion rules", () => {
     expect(result.transcript).toBe("Rozmowa");
     expect(result.duration).toBe(110);
   });
+  it("reads only the named Vapi classification and preserves it through late events", () => {
+    const report = vapiCallSchema.parse({
+      ...source,
+      artifact: { structuredOutputs: {
+        "id-1": { name: "Tatravet Contact Reason", result: { contactReason: "appointment" } },
+      } },
+    });
+    const classified = normalizeCall(report);
+    expect(classified.contactReason).toBe("appointment");
+    expect(mergeCall(classified, normalizeCall(source)).contactReason).toBe("appointment");
+    expect(normalizeCall(vapiCallSchema.parse({ ...source, analysis: { structuredData: { contactReason: "invalid" } } })).contactReason).toBeNull();
+  });
   it("fills missing transcript from delayed report and excludes staff-owned fields", () => {
     const old = {
       ...normalizeCall({

@@ -720,6 +720,12 @@ tbody tr:hover {
   grid-template-columns: 1.2fr 1fr;
   gap: 24px;
 }
+.reasons-panel {
+  grid-column: 1 / -1;
+}
+.reasons-panel .ending-row {
+  max-width: 720px;
+}
 .ending-row {
   margin-top: 20px;
 }

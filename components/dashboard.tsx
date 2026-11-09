@@ -35,7 +35,7 @@ import {
   MessageSquareText,
 } from "lucide-react";
 import Brand from "./brand";
-import { followLabels, statusLabels, terminationLabel } from "@/lib/calls";
+import { contactReasons, followLabels, statusLabels, terminationLabel } from "@/lib/calls";
 import type { DashboardData } from "@/lib/dashboard";
 type Serialized<T> = T extends Date
   ? string
@@ -549,6 +549,16 @@ export default function Dashboard({
                       <DailyChart data={data.daily} />
                     </section>
                     <div className="analytics-grid">
+                      <section className="panel reasons-panel">
+                        <h2>Powody kontaktu</h2>
+                        <p className="section-description">Główny temat każdej rozmowy w wybranym okresie</p>
+                        {data.reasons.length ? data.reasons.map((item) => (
+                          <div className="ending-row" key={item.key}>
+                            <div><span>{item.name}</span><strong>{item.value}</strong></div>
+                            <progress aria-label={item.name} value={item.value} max={data.metrics.count} />
+                          </div>
+                        )) : <Empty title="Brak powodów kontaktu" text="Wybierz okres z połączeniami." />}
+                      </section>
                       <section className="panel">
                         <h2>Godziny największego ruchu</h2>
                         <HoursChart data={data.hours} />
@@ -1100,6 +1110,8 @@ function CallDetail({
               <h3>Podsumowanie rozmowy</h3>
               <p>{call.summary || "Podsumowanie nie jest jeszcze dostępne."}</p>
               <dl className="call-facts">
+                <dt>Powód kontaktu</dt>
+                <dd>{contactReasons[call.contactReason as keyof typeof contactReasons] || contactReasons.unknown}</dd>
                 <dt>Status</dt>
                 <dd>{statusLabels[call.status] || "Nieznany status"}</dd>
                 <dt>Przyczyna zakończenia</dt>

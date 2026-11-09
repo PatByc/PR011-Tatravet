@@ -10,6 +10,7 @@ async function main() {
     "Pytanie o przygotowanie kota do badania.",
     "Prośba o potwierdzenie terminu wizyty.",
   ];
+  const reasons = ["appointment", "animal_health", "clinic_info", "appointment_change", "services_prices"];
   for (let i = 0; i < 85; i++) {
     const startedAt = new Date();
     startedAt.setUTCDate(startedAt.getUTCDate() - Math.floor(i / 5));
@@ -27,13 +28,14 @@ async function main() {
       status: "ended",
       endedReason: i % 13 === 0 ? "pipeline-error" : "customer-ended-call",
       summary: summaries[i % 5],
+      contactReason: reasons[i % reasons.length],
       transcript: `Asystent: Dzień dobry, przychodnia Tatravet. W czym mogę pomóc?\n\nRozmówca: Dzień dobry. Chciałabym zapytać o termin wizyty kontrolnej dla mojego psa.\n\nAsystent: Przekażę prośbę zespołowi przychodni. Czy możemy oddzwonić pod numer, z którego Pani dzwoni?\n\nRozmówca: Tak, dziękuję.\n\nAsystent: Dziękuję za telefon. Do usłyszenia.`,
       sourceUpdatedAt: startedAt,
       isDemo: true,
       followUp: i < 3 ? "CALLBACK" : i % 3 === 0 ? "DONE" : "NONE",
       note: i === 0 ? "Oddzwonić w sprawie dostępnych terminów." : "",
     };
-    await db.call.upsert({ where: { id: data.id }, create: data, update: {} });
+    await db.call.upsert({ where: { id: data.id }, create: data, update: { contactReason: data.contactReason } });
   }
   console.log("85 synthetic calls prepared.");
 }

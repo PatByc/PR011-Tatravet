@@ -34,6 +34,7 @@ model Call {
   endedReason String?
   transcript String?
   summary String?
+  contactReason String?
   sourceUpdatedAt DateTime
   followUp String @default("NONE")
   note String @default("")
