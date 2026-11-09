@@ -15,7 +15,7 @@ export async function ingestCall(raw: unknown) {
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${call.id}))::text`;
     const existing = await tx.call.findUnique({ where: { id: call.id } });
     const data = existing ? mergeCall(existing, normalized) : normalized;
-    const followUp = existing?.followUpReviewed
+    const followUp = existing && (existing.followUpReviewed || existing.revision > 0)
       ? existing.followUp
       : needsCallback || existing?.followUp === "CALLBACK"
         ? "CALLBACK"

@@ -7,7 +7,7 @@ async function main() {
   let updated = 0;
   for (;;) {
     const calls = await db.call.findMany({
-      where: { isDemo: false, followUp: "NONE", followUpReviewed: false, transcript: { not: null }, ...(cursor ? { id: { gt: cursor } } : {}) },
+      where: { isDemo: false, followUp: "NONE", followUpReviewed: false, revision: 0, transcript: { not: null }, ...(cursor ? { id: { gt: cursor } } : {}) },
       select: { id: true, transcript: true },
       orderBy: { id: "asc" },
       take: 100,
@@ -16,7 +16,7 @@ async function main() {
     for (const call of calls) {
       if (!assistantPromisedCallback(call.transcript)) continue;
       const result = await db.call.updateMany({
-        where: { id: call.id, isDemo: false, followUp: "NONE", followUpReviewed: false },
+        where: { id: call.id, isDemo: false, followUp: "NONE", followUpReviewed: false, revision: 0 },
         data: { followUp: "CALLBACK" },
       });
       updated += result.count;
