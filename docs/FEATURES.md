@@ -16,6 +16,7 @@ The analytics tab groups each call by one structured contact reason supplied by 
 - Copy dashboard link and integration status.
 - Authenticated Vapi webhook ingestion, assistant allowlist, duplicate-safe updates and webhook receipt status. Scheduled reconciliation is not part of the selected setup.
 - PostgreSQL migration, isolated demo fixtures, Docker and Railway configuration.
+- Optional idempotent three-call showcase seed for the real-data view, dated 9 November 2026 and visibly labelled as samples.
 - Source-independent dependency layer and a production image excluding development tools and build cache.
 
 ## Awaiting external setup

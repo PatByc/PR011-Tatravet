@@ -31,13 +31,17 @@ After migration, run `npm run account` inside the web service using Railway's se
 
 The same command recovers a forgotten password, changes the shared username, revokes all previous sessions, and clears the login throttle. The in-app password change requires the current password and logs out all devices. There is no public signup or email recovery service.
 
+## Three presentation calls in the real-data view
+
+After deploying the version with `seed:showcase` and setting the dashboard service's `DEMO_MODE=false`, run `npm run seed:showcase` once in that service's Railway shell. It copies only `demo-0`, `demo-1`, and `demo-2` into three clearly labelled sample records dated 9 November 2026 in Warsaw time. It uses fake demo caller numbers, preserves the original demo rows, and is safe to rerun without duplicates. These three records have `isDemo=false`, so they appear alongside real Vapi calls and count in analytics. Use the dashboard date range for 9 November 2026 or a range containing that day to see them. Remove the three `showcase-20261109-*` records when the presentation is over if they should no longer affect live analytics.
+
 ## Custom domain — configured by the owner
 
-1. In Railway's dashboard service, add `liniavet.tatravet.pl` under Settings → Networking → Custom Domain.
-2. At Hostido, add a CNAME for `liniavet` using the exact target Railway supplies. Follow any additional verification record shown by Railway.
+1. In Railway's dashboard service, add `tatravet.liniavet.pl` under Settings → Networking → Custom Domain.
+2. In the DNS provider for `liniavet.pl`, add a CNAME for `tatravet` using the exact target Railway supplies. Follow any additional verification record shown by Railway.
 3. Remove only conflicting records for that hostname, if any. Leave the clinic's root website records untouched.
 4. Wait for DNS verification and Railway's TLS certificate.
-5. Confirm `PUBLIC_URL=https://liniavet.tatravet.pl` and open the application using this address.
+5. Confirm `PUBLIC_URL=https://tatravet.liniavet.pl` (including `https://`, without literal quotes) and open the application using this address.
 
 This is direct DNS routing, not a redirect through Vercel. Same-origin APIs require no permissive CORS configuration. Cookies are host-only, Secure, HttpOnly and SameSite=Lax. Copying the link never embeds a password or access token. If using the temporary Railway domain before DNS is ready, set PUBLIC_URL to that domain until switching; otherwise origin checks deliberately reject logins there.
 
