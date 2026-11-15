@@ -220,12 +220,23 @@ export default function Dashboard({
       return;
     }
     setNotifyPending(true);
-    setNotifyStatus("Czekam na zgodę przeglądarki. Sprawdź też ikonę przy pasku adresu.");
+    setNotifyStatus("Czekam na zgodę przeglądarki. Jeśli nie widzisz pytania, sprawdź ikonę przy adresie strony.");
+    let permissionTimeout: ReturnType<typeof setTimeout> | undefined;
     try {
       const permission = Notification.permission === "granted"
-        ? "granted" : await Notification.requestPermission();
-      if (permission !== "granted") {
-        setNotifyStatus(permission === "denied"
+        ? "granted" : await Promise.race([
+          Notification.requestPermission(),
+          new Promise<"timeout">((resolve) => {
+            permissionTimeout = setTimeout(() => resolve("timeout"), 10000);
+          }),
+        ]);
+      const effectivePermission = permission === "timeout" ? Notification.permission : permission;
+      if (permission === "timeout" && effectivePermission !== "granted") {
+        setNotifyStatus("Przeglądarka nie pokazała prośby. Otwórz Ustawienia → Prywatność i bezpieczeństwo → Ustawienia witryny → Powiadomienia, zezwól tej stronie i kliknij ponownie „Włącz powiadomienia”.");
+        return;
+      }
+      if (effectivePermission !== "granted") {
+        setNotifyStatus(effectivePermission === "denied"
           ? "Powiadomienia zablokowane. Zmień uprawnienia tej witryny przy pasku adresu."
           : "Nie udzielono zgody. Kliknij ponownie i sprawdź ikonę przy pasku adresu.");
         return;
@@ -238,6 +249,7 @@ export default function Dashboard({
     } catch {
       setNotifyStatus("Nie udało się poprosić o zgodę. Sprawdź uprawnienia tej witryny w przeglądarce.");
     } finally {
+      if (permissionTimeout) clearTimeout(permissionTimeout);
       setNotifyPending(false);
     }
   }
