@@ -14,6 +14,7 @@ The analytics tab groups each call by one structured contact reason supplied by 
 - Automatic callback queue entry only from the EOCR structured `wymagaOddzwonienia: true` flag; staff decisions take precedence.
 - Daily/hourly analytics with Warsaw timezone handling.
 - Copy dashboard link and integration status.
+- Browser notifications for new real callback actions, a tab-title count of open callback actions, and per-browser polling controls. Paw favicon matching the sidebar mark.
 - Authenticated Vapi webhook ingestion, assistant allowlist, duplicate-safe updates and webhook receipt status. Scheduled reconciliation is not part of the selected setup.
 - PostgreSQL migration, isolated demo fixtures, Docker and Railway configuration.
 - Optional idempotent three-call showcase seed for the real-data view, dated 9 November 2026 and visibly labelled as samples.

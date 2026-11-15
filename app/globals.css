@@ -250,6 +250,10 @@ button.primary,
   border-radius: 4px;
   font-size: 10px;
 }
+.notification-settings .section-description { margin-bottom: 18px; }
+.notification-toggle[aria-pressed="true"] { border-color: var(--green); color: var(--green-dark); }
+.notification-interval { display: grid; gap: 8px; margin-top: 20px; font-size: 12px; font-weight: 500; }
+.notification-interval select { max-width: 220px; }
 .sidebar-bottom {
   margin-top: auto;
 }

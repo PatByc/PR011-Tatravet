@@ -22,8 +22,8 @@ export async function ingestCall(raw: unknown, endOfCallReport = false) {
         : existing?.followUp || "NONE";
     await tx.call.upsert({
       where: { id: call.id },
-      create: { ...data, followUp },
-      update: { ...data, followUp },
+      create: { ...data, followUp, reportedAt: endOfCallReport ? new Date() : null },
+      update: { ...data, followUp, reportedAt: existing?.reportedAt || (endOfCallReport ? new Date() : null) },
     });
   });
   return true;

@@ -23,6 +23,7 @@ async function login(page: import("@playwright/test").Page) {
 }
 test("protects data and rejects cross-origin login", async ({ request }) => {
   expect((await request.get("/api/dashboard")).status()).toBe(401);
+  expect((await request.get("/api/notifications")).status()).toBe(401);
   expect((await request.get("/api/calls/demo-0")).status()).toBe(401);
   expect(
     (
@@ -56,6 +57,7 @@ test("clinic workflow, analytics, copy link and logout", async ({
   await expect
     .poll(() => page.evaluate(() => navigator.clipboard.readText()))
     .toBe("http://localhost:3111");
+  const callbackNumber = await page.locator(".callback-item").first().locator("strong").textContent();
   await page.locator(".callback-item").first().click();
   const dialog = page.getByRole("dialog");
   await expect(
@@ -71,7 +73,7 @@ test("clinic workflow, analytics, copy link and logout", async ({
     .click();
   await page
     .getByRole("textbox", { name: "Szukaj połączeń" })
-    .fill("000 000 001");
+    .fill(callbackNumber || "");
   await expect(page.locator("tbody tr")).toHaveCount(1);
   await page
     .getByRole("button", { name: "Otwórz połączenie", exact: false })
@@ -90,6 +92,12 @@ test("clinic workflow, analytics, copy link and logout", async ({
   await expect(
     page.getByRole("heading", { name: "Dostęp do panelu" }),
   ).toBeVisible();
+  await context.grantPermissions(["notifications"]);
+  await page.getByRole("button", { name: "Włącz powiadomienia" }).click();
+  await expect(page.getByRole("button", { name: "Wyłącz powiadomienia" })).toHaveAttribute("aria-pressed", "true");
+  await page.getByLabel("Sprawdzaj nowe sprawy co").selectOption("120000");
+  await expect(page.getByLabel("Sprawdzaj nowe sprawy co")).toHaveValue("120000");
+  await expect(page).toHaveTitle(/^\(\d+\) Tatravet · Panel połączeń$/);
   await page.getByRole("button", { name: "Wyloguj się" }).click();
   await expect(page).toHaveURL(/login/);
   expect(errors).toEqual([]);

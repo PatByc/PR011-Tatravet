@@ -36,6 +36,7 @@ model Call {
   summary String?
   contactReason String?
   sourceUpdatedAt DateTime
+  reportedAt DateTime?
   followUp String @default("NONE")
   followUpReviewed Boolean @default(false)
   note String @default("")
@@ -43,6 +44,7 @@ model Call {
   isDemo Boolean @default(false)
   updatedAt DateTime @updatedAt
   @@index([startedAt])
+  @@index([isDemo, reportedAt])
   @@index([followUp, startedAt])
 }
 model SyncState {

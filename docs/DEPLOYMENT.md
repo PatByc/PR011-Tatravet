@@ -21,6 +21,8 @@ Use a European Railway region for both app and database. Keep PostgreSQL private
 
 No VAPI_API_KEY is required for webhooks.
 
+Browser notifications use HTTPS and require the user to switch them on in Settings. The browser prompts for permission on that click. Settings store the check interval per browser; the dashboard tab must remain open for system popups. Background browser throttling may delay checks. The tab title count works without notification permission. No new Railway environment variables or service are needed.
+
 Railway supplies `PORT`; Next starts on `0.0.0.0`. The image sets production mode, which enables secure cookies. Do not put Vapi credentials in any `NEXT_PUBLIC_*` variable.
 
 If deploying before Vapi is ready, omit its variables. Login and the empty dashboard still work. No records are fabricated.

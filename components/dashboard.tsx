@@ -20,6 +20,7 @@ import {
   ArrowDownLeft,
   ArrowRight,
   BarChart3,
+  Bell,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -68,6 +69,15 @@ const reasonColors: Record<string, string> = {
   unknown: "#c8cdc4",
 };
 type Tab = "overview" | "calls" | "analytics" | "settings";
+const notificationIntervals = [
+  [15000, "15 sekund"], [30000, "30 sekund"], [60000, "1 minuta"],
+  [120000, "2 minuty"], [300000, "5 minut"], [600000, "10 minut"],
+] as const;
+const notificationKeys = {
+  enabled: "tatravet.notifications.enabled",
+  interval: "tatravet.notifications.interval",
+  cursor: "tatravet.notifications.cursor",
+};
 const tabs = [
   { id: "overview" as const, label: "Przegląd", icon: LayoutDashboard },
   { id: "calls" as const, label: "Połączenia", icon: Phone },
@@ -133,7 +143,85 @@ export default function Dashboard({
     [loading, setLoading] = useState(true),
     [selected, setSelected] = useState<string | null>(null),
     [toast, setToast] = useState("");
+  const [notifyEnabled, setNotifyEnabled] = useState(false);
+  const [notifyInterval, setNotifyInterval] = useState(30000);
+  const [notifyStatus, setNotifyStatus] = useState("");
+  const [openCount, setOpenCount] = useState(0);
   const generation = useRef(0);
+  const pollingNotifications = useRef(false);
+  const pollNotifications = useCallback(async () => {
+    if (pollingNotifications.current) return;
+    pollingNotifications.current = true;
+    try {
+      const previous = localStorage.getItem(notificationKeys.cursor);
+      const result = await request<{ cursor: { at: string; id: string } | null; newCount: number; openCount: number }>(
+        `/api/notifications${previous ? `?after=${encodeURIComponent(previous)}` : ""}`,
+      );
+      setOpenCount(result.openCount);
+      const nextCursor = result.cursor ? JSON.stringify(result.cursor) : null;
+      if (nextCursor && nextCursor !== previous && localStorage.getItem(notificationKeys.enabled) === "true") {
+        // A shared cursor prevents ordinary reloads and other open tabs from replaying alerts.
+        if (localStorage.getItem(notificationKeys.cursor) === previous) {
+          localStorage.setItem(notificationKeys.cursor, nextCursor);
+          if (previous && result.newCount > 0 &&
+              typeof Notification !== "undefined" && Notification.permission === "granted") {
+            const notice = new Notification(
+              result.newCount === 1 ? "Nowa sprawa do oddzwonienia" : `${result.newCount} nowe sprawy do oddzwonienia`,
+              { body: "Sprawdź połączenia w panelu Tatravet." },
+            );
+            notice.onclick = () => { window.focus(); setTab("calls"); notice.close(); };
+          }
+        }
+      }
+    } catch {
+      // The dashboard continues to work if notification checks are unavailable.
+    } finally {
+      pollingNotifications.current = false;
+    }
+  }, []);
+  useEffect(() => {
+    const savedEnabled = localStorage.getItem(notificationKeys.enabled) === "true";
+    if (savedEnabled && (typeof Notification === "undefined" || Notification.permission !== "granted")) {
+      localStorage.setItem(notificationKeys.enabled, "false");
+      setNotifyStatus("Powiadomienia wymagają ponownej zgody przeglądarki.");
+    } else setNotifyEnabled(savedEnabled);
+    const saved = Number(localStorage.getItem(notificationKeys.interval));
+    if (notificationIntervals.some(([ms]) => ms === saved)) setNotifyInterval(saved);
+  }, []);
+  useEffect(() => {
+    document.title = openCount ? `(${openCount}) Tatravet · Panel połączeń` : "Tatravet · Panel połączeń";
+    return () => { document.title = "Tatravet · Panel połączeń"; };
+  }, [openCount]);
+  useEffect(() => {
+    void pollNotifications();
+    const timer = setInterval(() => void pollNotifications(), notifyInterval);
+    const onVisible = () => { if (document.visibilityState === "visible") void pollNotifications(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); };
+  }, [notifyInterval, pollNotifications]);
+  async function toggleNotifications() {
+    if (notifyEnabled) {
+      localStorage.setItem(notificationKeys.enabled, "false");
+      setNotifyEnabled(false);
+      setNotifyStatus("Powiadomienia wyłączone w tej przeglądarce.");
+      return;
+    }
+    if (typeof Notification === "undefined" || !window.isSecureContext) {
+      setNotifyStatus("Ta przeglądarka nie obsługuje powiadomień na tej stronie.");
+      return;
+    }
+    const permission = Notification.permission === "granted"
+      ? "granted" : await Notification.requestPermission();
+    if (permission !== "granted") {
+      setNotifyStatus("Powiadomienia są zablokowane. Zezwól na nie w ustawieniach tej witryny w przeglądarce.");
+      return;
+    }
+    localStorage.setItem(notificationKeys.enabled, "true");
+    localStorage.removeItem(notificationKeys.cursor);
+    setNotifyEnabled(true);
+    setNotifyStatus("Powiadomienia włączone w tej przeglądarce.");
+    void pollNotifications();
+  }
   const load = useCallback(async () => {
     const generationId = ++generation.current;
     try {
@@ -631,6 +719,14 @@ export default function Dashboard({
                     logout={logout}
                     connection={connection}
                     lastSync={lastSync || null}
+                    notifyEnabled={notifyEnabled}
+                    notifyInterval={notifyInterval}
+                    notifyStatus={notifyStatus}
+                    toggleNotifications={toggleNotifications}
+                    changeNotifyInterval={(value) => {
+                      setNotifyInterval(value);
+                      localStorage.setItem(notificationKeys.interval, String(value));
+                    }}
                   />
                 )}
                 <footer className="content-footer">
@@ -659,6 +755,7 @@ export default function Dashboard({
           onClose={() => setSelected(null)}
           onSave={() => {
             void load();
+            void pollNotifications();
             setToast("Zmiany zapisane");
           }}
         />
@@ -879,6 +976,11 @@ function SettingsPanel({
   logout,
   connection,
   lastSync,
+  notifyEnabled,
+  notifyInterval,
+  notifyStatus,
+  toggleNotifications,
+  changeNotifyInterval,
 }: {
   username: string;
   publicUrl: string;
@@ -886,6 +988,11 @@ function SettingsPanel({
   logout: () => void;
   connection: string;
   lastSync: string | null;
+  notifyEnabled: boolean;
+  notifyInterval: number;
+  notifyStatus: string;
+  toggleNotifications: () => void;
+  changeNotifyInterval: (value: number) => void;
 }) {
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
@@ -971,6 +1078,22 @@ function SettingsPanel({
         </button>
       </section>
       <div className="settings-side">
+        <section className="panel notification-settings">
+          <h2>Powiadomienia o oddzwonieniu</h2>
+          <p className="section-description">Przeglądarka powiadomi Cię o nowej sprawie, gdy panel jest otwarty.</p>
+          <button className="button notification-toggle" onClick={toggleNotifications} aria-pressed={notifyEnabled}>
+            <Bell size={17} />
+            {notifyEnabled ? "Wyłącz powiadomienia" : "Włącz powiadomienia"}
+          </button>
+          <label className="notification-interval">
+            Sprawdzaj nowe sprawy co
+            <select value={notifyInterval} onChange={(event) => changeNotifyInterval(Number(event.target.value))}>
+              {notificationIntervals.map(([ms, label]) => <option key={ms} value={ms}>{label}</option>)}
+            </select>
+          </label>
+          {notifyStatus && <p className="small muted" role="status">{notifyStatus}</p>}
+          <p className="small muted">Liczba spraw do oddzwonienia jest zawsze widoczna w tytule karty.</p>
+        </section>
         <section className="panel">
           <h2>Link dla zespołu</h2>
           <p className="section-description">
