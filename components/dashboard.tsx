@@ -69,6 +69,13 @@ const reasonColors: Record<string, string> = {
   unknown: "#c8cdc4",
 };
 type Tab = "overview" | "calls" | "analytics" | "settings";
+const newCallsLabel = (count: number) => {
+  if (count === 1) return "Nowe połączenie";
+  const few = count % 10 >= 2 && count % 10 <= 4 && (count % 100 < 12 || count % 100 > 14);
+  return `${count} ${few ? "nowe połączenia" : "nowych połączeń"}`;
+};
+const callbackAlertLabel = (count: number, callbacks: number) =>
+  callbacks === 0 ? "Bez dalszego działania." : count === 1 ? "Wymaga oddzwonienia." : `Do oddzwonienia: ${callbacks}.`;
 const notificationKeys = {
   enabled: "tatravet.notifications.enabled",
   cursor: "tatravet.notifications.cursor",
@@ -147,8 +154,8 @@ export default function Dashboard({
   const [notifyStatus, setNotifyStatus] = useState("");
   const [notifyPending, setNotifyPending] = useState(false);
   const [browserPermission, setBrowserPermission] = useState<BrowserNotificationPermission>("unsupported");
-  const [openCount, setOpenCount] = useState(0);
-  const [newCallbackCount, setNewCallbackCount] = useState(0);
+  const [unreadCallCount, setUnreadCallCount] = useState(0);
+  const [newCallAlert, setNewCallAlert] = useState({ count: 0, callbackCount: 0 });
   const generation = useRef(0);
   const pollingNotifications = useRef(false);
   const firstNotificationPoll = useRef(true);
@@ -157,25 +164,25 @@ export default function Dashboard({
     pollingNotifications.current = true;
     try {
       const previous = localStorage.getItem(notificationKeys.cursor);
-      const result = await request<{ cursor: { at: string; id: string } | null; newCount: number; openCount: number }>(
+      const result = await request<{ cursor: { at: string; id: string } | null; newCount: number; newCallbackCount: number }>(
         `/api/notifications${previous ? `?after=${encodeURIComponent(previous)}` : ""}`,
       );
-      setOpenCount(result.openCount);
       const nextCursor = result.cursor ? JSON.stringify(result.cursor) : null;
       if (nextCursor && nextCursor !== previous) {
         // A shared cursor prevents ordinary reloads and other open tabs from replaying alerts.
         if (localStorage.getItem(notificationKeys.cursor) === previous) {
           localStorage.setItem(notificationKeys.cursor, nextCursor);
-          if (previous && result.newCount > 0) {
-            if (!firstNotificationPoll.current) setNewCallbackCount((count) => count + result.newCount);
+          if (previous && result.newCount > 0 && !firstNotificationPoll.current) {
+            setUnreadCallCount((count) => count + result.newCount);
+            setNewCallAlert((alert) => ({ count: alert.count + result.newCount, callbackCount: alert.callbackCount + result.newCallbackCount }));
           }
-          if (previous && result.newCount > 0 && localStorage.getItem(notificationKeys.enabled) === "true" && browserNotificationPermission() === "granted") {
+          if (previous && result.newCount > 0 && !firstNotificationPoll.current && localStorage.getItem(notificationKeys.enabled) === "true" && browserNotificationPermission() === "granted") {
             try {
               const notice = new Notification(
-                result.newCount === 1 ? "Nowa sprawa do oddzwonienia" : `${result.newCount} nowe sprawy do oddzwonienia`,
-                { body: "Sprawdź połączenia w panelu Tatravet." },
+                newCallsLabel(result.newCount),
+                { body: callbackAlertLabel(result.newCount, result.newCallbackCount) },
               );
-              notice.onclick = () => { window.focus(); setTab("calls"); notice.close(); };
+              notice.onclick = () => { window.focus(); navigate("calls"); notice.close(); };
             } catch {
               setNotifyStatus("Przeglądarka nie mogła wyświetlić powiadomienia. Sprawdź uprawnienia tej witryny.");
             }
@@ -209,9 +216,9 @@ export default function Dashboard({
     };
   }, []);
   useEffect(() => {
-    document.title = openCount ? `(${openCount}) Tatravet · Panel połączeń` : "Tatravet · Panel połączeń";
+    document.title = unreadCallCount ? `(${unreadCallCount}) Tatravet · Panel połączeń` : "Tatravet · Panel połączeń";
     return () => { document.title = "Tatravet · Panel połączeń"; };
-  }, [openCount]);
+  }, [unreadCallCount]);
   async function toggleNotifications() {
     if (notifyPending) return;
     if (notifyEnabled) {
@@ -340,6 +347,10 @@ export default function Dashboard({
   }, [toast]);
   function navigate(next: Tab) {
     setTab(next);
+    if (next === "calls") {
+      setUnreadCallCount(0);
+      setNewCallAlert({ count: 0, callbackCount: 0 });
+    }
     setPage(1);
     setSearch("");
     setQuery("");
@@ -840,19 +851,17 @@ export default function Dashboard({
           {toast}
         </div>
       )}
-      {newCallbackCount > 0 && (
+      {newCallAlert.count > 0 && (
         <div className="callback-alert" role="status" aria-live="polite">
           <span className="callback-alert-icon"><Bell size={19} aria-hidden="true" /></span>
           <div className="callback-alert-copy">
-            <strong>{newCallbackCount === 1 ? "Nowa sprawa do oddzwonienia" : `${newCallbackCount} nowe sprawy do oddzwonienia`}</strong>
-            <span>Sprawdź połączenia w panelu.</span>
+            <strong>{newCallsLabel(newCallAlert.count)}</strong>
+            <span>{callbackAlertLabel(newCallAlert.count, newCallAlert.callbackCount)}</span>
           </div>
           <button className="callback-alert-action" onClick={() => {
             navigate("calls");
-            setFollow("CALLBACK");
-            setNewCallbackCount(0);
           }}>Zobacz</button>
-          <button className="callback-alert-dismiss" onClick={() => setNewCallbackCount(0)} aria-label="Zamknij powiadomienie"><X size={16} /></button>
+          <button className="callback-alert-dismiss" onClick={() => setNewCallAlert({ count: 0, callbackCount: 0 })} aria-label="Zamknij powiadomienie"><X size={16} /></button>
         </div>
       )}
     </div>
@@ -1170,8 +1179,8 @@ function SettingsPanel({
       </section>
       <div className="settings-side">
         <section className="panel notification-settings">
-          <h2>Powiadomienia o oddzwonieniu</h2>
-          <p className="section-description">Nowa sprawa pojawi się w panelu, gdy karta jest otwarta. Powiadomienia systemowe wymagają zgody przeglądarki.</p>
+          <h2>Powiadomienia o połączeniach</h2>
+          <p className="section-description">Każde nowe połączenie pojawi się w panelu ze statusem dalszej obsługi, gdy karta jest otwarta. Powiadomienia systemowe wymagają zgody przeglądarki.</p>
           <p className="notification-permission">Zgoda przeglądarki: <strong>{browserPermission === "granted" ? "Zezwolono" : browserPermission === "denied" ? "Zablokowano" : browserPermission === "default" ? "Nie udzielono" : "Niedostępne"}</strong></p>
           <button className="button notification-toggle" onClick={toggleNotifications} aria-pressed={notifyEnabled} disabled={notifyPending}>
             <Bell size={17} />
@@ -1181,7 +1190,7 @@ function SettingsPanel({
           {browserPermission === "unsupported" && <p className="small muted notification-help">Powiadomienia w panelu nadal będą widoczne przy otwartej karcie.</p>}
           {notifyEnabled && <button className="text-button notification-test" onClick={testNotification}>Wyślij powiadomienie testowe</button>}
           {notifyStatus && <p className="notification-feedback" role="status" aria-live="polite">{notifyStatus}</p>}
-          <p className="small muted">Liczba spraw do oddzwonienia jest zawsze widoczna w tytule karty.</p>
+          <p className="small muted">Tytuł karty pokazuje nowe połączenia od otwarcia panelu. Licznik znika po otwarciu listy połączeń.</p>
         </section>
         <section className="panel">
           <h2>Link dla zespołu</h2>

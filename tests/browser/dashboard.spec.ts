@@ -99,7 +99,7 @@ test("clinic workflow, analytics, copy link and logout", async ({
   await expect(page.locator(".notification-feedback")).toContainText("Powiadomienia włączone");
   await page.getByRole("button", { name: "Wyślij powiadomienie testowe" }).click();
   await expect(page.locator(".notification-feedback")).toContainText(/Wysłano powiadomienie testowe|nie mogła wyświetlić powiadomienia/);
-  await expect(page).toHaveTitle(/^\(\d+\) Tatravet · Panel połączeń$/);
+  await expect(page).toHaveTitle("Tatravet · Panel połączeń");
   await page.getByRole("button", { name: "Wyloguj się" }).click();
   await expect(page).toHaveURL(/login/);
   expect(errors).toEqual([]);
@@ -135,7 +135,7 @@ test("mobile layout remains usable and contains table overflow", async ({
     fullPage: true,
   });
 });
-test("new callback stays visible in the dashboard without browser permission", async ({ page }) => {
+test("new call stays visible in the dashboard without browser permission", async ({ page }) => {
   let checks = 0;
   await page.route("**/api/events", (route) => route.fulfill({ status: 503, body: "" }));
   await page.route("**/api/notifications*", async (route) => {
@@ -143,7 +143,7 @@ test("new callback stays visible in the dashboard without browser permission", a
     await route.fulfill({ json: {
       cursor: { at: checks === 1 ? "2026-11-15T10:00:00.000Z" : "2026-11-15T10:01:00.000Z", id: checks === 1 ? "initial" : "new-call" },
       newCount: checks === 1 ? 0 : 1,
-      openCount: checks === 1 ? 0 : 1,
+      newCallbackCount: 0,
     } });
   });
   await login(page);
@@ -151,10 +151,12 @@ test("new callback stays visible in the dashboard without browser permission", a
   expect(checks).toBe(1);
   await expect(page.locator(".callback-alert")).toHaveCount(0);
   await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
-  await expect(page.locator(".callback-alert")).toContainText("Nowa sprawa do oddzwonienia");
-  await expect(page.locator(".callback-alert")).toContainText("Sprawdź połączenia w panelu.");
+  await expect(page.locator(".callback-alert")).toContainText("Nowe połączenie");
+  await expect(page.locator(".callback-alert")).toContainText("Bez dalszego działania.");
+  await expect(page).toHaveTitle("(1) Tatravet · Panel połączeń");
   await page.locator(".callback-alert-action").click();
   await expect(page.locator(".callback-alert")).toHaveCount(0);
+  await expect(page).toHaveTitle("Tatravet · Panel połączeń");
   await expect(page.getByRole("heading", { name: "Historia połączeń" })).toBeVisible();
 });
 test("invalid password does not authenticate", async ({ request }) => {

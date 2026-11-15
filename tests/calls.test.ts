@@ -83,15 +83,21 @@ describe("Vapi ingestion rules", () => {
     expect(callbackRequired(call)).toBe(false);
     expect(callbackRequired(vapiCallSchema.parse({ ...source, transcript: "User: Czy recepcja oddzwoni?\nAI: Dziękuję za rozmowę." }))).toBe(false);
   });
-  it("uses an explicit Vapi callback decision when provided", () => {
-    const call = vapiCallSchema.parse({
-      ...source,
-      artifact: { structuredOutputs: {
-        output: { name: "PR011 Tatravet — Powód kontaktu", result: { wymagaOddzwonienia: true } },
-      } },
-    });
-    expect(callbackRequired(call)).toBe(true);
-    expect(callbackRequired(vapiCallSchema.parse({ ...source, analysis: { structuredData: { wymagaOddzwonienia: false } }, transcript: "AI: Recepcja oddzwoni." }))).toBe(false);
+  it("maps the structured contact reason to callback work, ignoring Vapi's callback flag", () => {
+    const needsCallback = ["Umówienie wizyty", "Zmiana lub odwołanie wizyty", "Zdrowie zwierzęcia", "Wyniki badań i leczenie"];
+    const noAction = ["Usługi i ceny", "Informacje o przychodni", "Inne", "Nieustalony powód"];
+    for (const reason of needsCallback) {
+      const call = vapiCallSchema.parse({ ...source, artifact: { structuredOutputs: {
+        output: { name: "PR011 Tatravet — Powód kontaktu", result: { powodKontaktu: reason, wymagaOddzwonienia: false } },
+      } } });
+      expect(callbackRequired(call)).toBe(true);
+    }
+    for (const reason of noAction) {
+      const call = vapiCallSchema.parse({ ...source, artifact: { structuredOutputs: {
+        output: { name: "PR011 Tatravet — Powód kontaktu", result: { powodKontaktu: reason, wymagaOddzwonienia: true } },
+      } } });
+      expect(callbackRequired(call)).toBe(false);
+    }
     expect(callbackRequired(vapiCallSchema.parse(source))).toBe(false);
   });
   it("fills missing transcript from delayed report and excludes staff-owned fields", () => {

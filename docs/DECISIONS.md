@@ -22,11 +22,11 @@ Read Vapi's live `PR011 Tatravet — Powód kontaktu` output and the earlier `Ta
 
 ## Accepted — automatic callback triage with staff override
 
-Set `Do oddzwonienia` only when the EOCR has structured `wymagaOddzwonienia: true`; otherwise use `Bez działania`. The contact reason and transcript do not affect this status. Mark staff changes as reviewed so later provider events cannot undo them. Only staff can mark `Załatwione`.
+Map the EOCR structured contact reason to a callback decision in code. Appointments, appointment changes, animal health, and test results require a callback; prices, clinic information, other, and unknown do not. Ignore Vapi's `wymagaOddzwonienia` flag and do not infer from the transcript. Mark staff changes as reviewed so later provider events cannot undo them. Only staff can mark `Załatwione`.
 
-## Accepted — browser notifications for new callback actions
+## Accepted — browser notifications for new calls
 
-Use an authenticated server event stream backed by PostgreSQL `LISTEN/NOTIFY` while the dashboard is open. Vapi and staff changes trigger refreshes without a 30-second timer; reconnect and tab focus also refresh the view. A persistent in-panel alert appears for newly reported real calls needing callback, regardless of browser permission. An optional generic system notification uses the same event after permission is granted; the tab title counts all open callback actions in the current mode. The first report timestamp prevents duplicate webhook alerts. Existing calls count but do not trigger launch-day popups. No push service, installed app or taskbar badge in this version.
+Use an authenticated server event stream backed by PostgreSQL `LISTEN/NOTIFY` while the dashboard is open. Vapi and staff changes trigger refreshes without a 30-second timer; reconnect and tab focus also refresh the view. A persistent in-panel alert appears for every newly reported real call, regardless of browser permission, and states whether callbacks are required. An optional system notification uses the same event after permission is granted. The tab title counts new completed calls since the panel opened, clearing when the call list is opened. The first report timestamp prevents duplicate webhook alerts. Existing calls do not trigger launch-day popups. No push service, installed app or taskbar badge in this version.
 
 ## Accepted — cache dependency layers and trim production packaging
 

@@ -58,7 +58,7 @@ describe.skipIf(!enabled)("PostgreSQL integration", () => {
     const id = "integration-notification";
     const call = { ...source, id, createdAt: "2026-11-08T10:00:00Z", startedAt: "2026-11-08T10:00:10Z", endedAt: "2026-11-08T10:02:10Z", artifact: {
       transcript: "Test",
-      structuredOutputs: { output: { name: "PR011 Tatravet — Powód kontaktu", result: { wymagaOddzwonienia: true } } },
+      structuredOutputs: { output: { name: "PR011 Tatravet — Powód kontaktu", result: { powodKontaktu: "Umówienie wizyty" } } },
     } };
     await ingestCall({ ...call, endedAt: undefined, status: "in-progress" });
     expect((await db.call.findUniqueOrThrow({ where: { id } })).reportedAt).toBeNull();

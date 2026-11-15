@@ -19,7 +19,7 @@ Apply/deploy the variable changes. Keep PUBLIC_URL matching the address used to 
 3. Open the saved Tatravet assistant → Advanced → Webhook Server. If a Server URL already handles tools or other business logic, preserve that integration and arrange event forwarding before replacing it.
 4. Set Server URL to `https://pr011-tatravet-production.up.railway.app/api/webhooks/vapi` and select the new credential under Authorization. When the custom domain is ready, this URL can use `https://liniavet.tatravet.pl/api/webhooks/vapi` instead.
 5. Enable status-update and end-of-call-report server messages. Publish the assistant settings. Configure transcript retention in Vapi as needed; summaries are optional and read from analysis.summary.
-6. Make a test call, end it, and check Vapi's webhook delivery logs for a successful response with accepted: true. Refresh the dashboard or allow its 30-second refresh. Inspect the transcript, duration, and caller number when provided.
+6. Make a test call, end it, and check Vapi's webhook delivery logs for a successful response with accepted: true. The open dashboard refreshes when the webhook is saved. Inspect the transcript, duration, and caller number when provided.
 
 ## Contact reasons in analytics
 
@@ -40,9 +40,9 @@ Vapi can finish structured extraction after the first end-of-call event. Check t
 
 ## Callback queue from the end-of-call report
 
-Add a required boolean `wymagaOddzwonienia` to the existing `PR011 Tatravet — Powód kontaktu` structured output schema. Define it as `true` only when the caller needs the clinic to call them back after this conversation; otherwise `false`. The EOCR handler sets `Obsługa` to `Do oddzwonienia` only for `true`; `false` or a missing field means `Bez działania`. Status updates do not reclassify. The contact reason and transcript are not used to decide. Staff edits take precedence over later EOCR deliveries, and only staff can mark a case `Załatwione`.
+The dashboard maps `powodKontaktu` to `Obsługa` itself. `Umówienie wizyty`, `Zmiana lub odwołanie wizyty`, `Zdrowie zwierzęcia`, and `Wyniki badań i leczenie` become `Do oddzwonienia`. `Usługi i ceny`, `Informacje o przychodni`, `Inne`, and `Nieustalony powód` become `Bez działania`. Vapi does not need to produce `wymagaOddzwonienia`; if it does, the dashboard ignores that boolean. Status updates do not reclassify. The transcript is not used to decide. Staff edits take precedence over later EOCR deliveries, and only staff can mark a case `Załatwione`.
 
-The output already saved for earlier calls lacks this boolean, so those calls stay `Bez działania` unless staff changes them. No backfill command is needed.
+The migration updates the existing unreviewed real reports using their stored contact reasons. It leaves staff-reviewed calls, demo data, and showcase samples unchanged. Older calls without a stored contact reason remain `Bez działania`.
 
 Source: [Vapi structured outputs](https://docs.vapi.ai/assistants/structured-outputs).
 

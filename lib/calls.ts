@@ -36,16 +36,8 @@ function extractedReason(call: VapiCall): ContactReason | null {
   return null;
 }
 export function callbackRequired(call: VapiCall): boolean {
-  const direct = call.analysis?.structuredData?.wymagaOddzwonienia;
-  if (typeof direct === "boolean") return direct;
-  const outputs = call.artifact?.structuredOutputs;
-  if (outputs) for (const output of Object.values(outputs)) {
-    if (output.name === "PR011 Tatravet — Powód kontaktu" || output.name === "Tatravet Contact Reason") {
-      const value = output.result?.wymagaOddzwonienia;
-      if (typeof value === "boolean") return value;
-    }
-  }
-  return false;
+  const reason = extractedReason(call);
+  return reason === "appointment" || reason === "appointment_change" || reason === "animal_health" || reason === "test_results";
 }
 export const vapiCallSchema = z.object({
   id: z.string().min(1).max(200),
@@ -62,12 +54,12 @@ export const vapiCallSchema = z.object({
     transcript: z.string().nullish(),
     structuredOutputs: z.record(z.string(), z.object({
       name: z.string().optional(),
-      result: z.object({ contactReason: z.unknown().optional(), powodKontaktu: z.unknown().optional(), wymagaOddzwonienia: z.boolean().optional() }).passthrough().nullish(),
+      result: z.object({ contactReason: z.unknown().optional(), powodKontaktu: z.unknown().optional() }).passthrough().nullish(),
     }).passthrough()).nullish(),
   }).nullish(),
   analysis: z.object({
     summary: z.string().nullish(),
-    structuredData: z.object({ contactReason: z.unknown().optional(), powodKontaktu: z.unknown().optional(), wymagaOddzwonienia: z.boolean().optional() }).passthrough().nullish(),
+    structuredData: z.object({ contactReason: z.unknown().optional(), powodKontaktu: z.unknown().optional() }).passthrough().nullish(),
   }).nullish(),
 });
 export type VapiCall = z.infer<typeof vapiCallSchema>;

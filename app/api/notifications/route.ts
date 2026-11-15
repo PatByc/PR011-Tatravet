@@ -22,15 +22,15 @@ export async function GET(request: Request) {
     }
     const reportWhere: Prisma.CallWhereInput = { isDemo: false, assistantId: { not: "showcase" }, reportedAt: { not: null } };
     const newWhere: Prisma.CallWhereInput = cursor ? {
-      ...reportWhere, followUp: "CALLBACK",
+      ...reportWhere,
       OR: [{ reportedAt: { gt: cursor.at } }, { reportedAt: cursor.at, id: { gt: cursor.id } }],
     } : {};
-    const [latest, newCount, openCount] = await Promise.all([
+    const [latest, newCount, newCallbackCount] = await Promise.all([
       demo ? Promise.resolve(null) : db.call.findFirst({ where: reportWhere, orderBy: [{ reportedAt: "desc" }, { id: "desc" }], select: { reportedAt: true, id: true } }),
       !demo && cursor ? db.call.count({ where: newWhere }) : Promise.resolve(0),
-      db.call.count({ where: { isDemo: demo, followUp: "CALLBACK" } }),
+      !demo && cursor ? db.call.count({ where: { ...newWhere, followUp: "CALLBACK" } }) : Promise.resolve(0),
     ]);
-    return json({ cursor: demo ? null : latest?.reportedAt ? { at: latest.reportedAt.toISOString(), id: latest.id } : { at: checkedAt.toISOString(), id: "" }, newCount, openCount });
+    return json({ cursor: demo ? null : latest?.reportedAt ? { at: latest.reportedAt.toISOString(), id: latest.id } : { at: checkedAt.toISOString(), id: "" }, newCount, newCallbackCount });
   } catch (error) {
     return apiError(error);
   }
