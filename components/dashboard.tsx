@@ -146,6 +146,7 @@ export default function Dashboard({
   const [notifyEnabled, setNotifyEnabled] = useState(false);
   const [notifyInterval, setNotifyInterval] = useState(30000);
   const [notifyStatus, setNotifyStatus] = useState("");
+  const [notifyPending, setNotifyPending] = useState(false);
   const [openCount, setOpenCount] = useState(0);
   const generation = useRef(0);
   const pollingNotifications = useRef(false);
@@ -163,13 +164,16 @@ export default function Dashboard({
         // A shared cursor prevents ordinary reloads and other open tabs from replaying alerts.
         if (localStorage.getItem(notificationKeys.cursor) === previous) {
           localStorage.setItem(notificationKeys.cursor, nextCursor);
-          if (previous && result.newCount > 0 &&
-              typeof Notification !== "undefined" && Notification.permission === "granted") {
-            const notice = new Notification(
-              result.newCount === 1 ? "Nowa sprawa do oddzwonienia" : `${result.newCount} nowe sprawy do oddzwonienia`,
-              { body: "Sprawdź połączenia w panelu Tatravet." },
-            );
-            notice.onclick = () => { window.focus(); setTab("calls"); notice.close(); };
+          if (previous && result.newCount > 0 && typeof Notification !== "undefined") {
+            try {
+              const notice = new Notification(
+                result.newCount === 1 ? "Nowa sprawa do oddzwonienia" : `${result.newCount} nowe sprawy do oddzwonienia`,
+                { body: "Sprawdź połączenia w panelu Tatravet." },
+              );
+              notice.onclick = () => { window.focus(); setTab("calls"); notice.close(); };
+            } catch {
+              setNotifyStatus("Przeglądarka nie mogła wyświetlić powiadomienia. Sprawdź uprawnienia tej witryny.");
+            }
           }
         }
       }
@@ -181,10 +185,14 @@ export default function Dashboard({
   }, []);
   useEffect(() => {
     const savedEnabled = localStorage.getItem(notificationKeys.enabled) === "true";
-    if (savedEnabled && (typeof Notification === "undefined" || Notification.permission !== "granted")) {
+    if (savedEnabled && typeof Notification === "undefined") {
       localStorage.setItem(notificationKeys.enabled, "false");
-      setNotifyStatus("Powiadomienia wymagają ponownej zgody przeglądarki.");
-    } else setNotifyEnabled(savedEnabled);
+      setNotifyStatus("Ta przeglądarka nie obsługuje powiadomień na tej stronie.");
+    } else {
+      setNotifyEnabled(savedEnabled);
+      if (savedEnabled && Notification.permission === "denied")
+        setNotifyStatus("Sprawdź, czy ta witryna ma zgodę na powiadomienia w przeglądarce.");
+    }
     const saved = Number(localStorage.getItem(notificationKeys.interval));
     if (notificationIntervals.some(([ms]) => ms === saved)) setNotifyInterval(saved);
   }, []);
@@ -200,6 +208,7 @@ export default function Dashboard({
     return () => { clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); };
   }, [notifyInterval, pollNotifications]);
   async function toggleNotifications() {
+    if (notifyPending) return;
     if (notifyEnabled) {
       localStorage.setItem(notificationKeys.enabled, "false");
       setNotifyEnabled(false);
@@ -210,17 +219,41 @@ export default function Dashboard({
       setNotifyStatus("Ta przeglądarka nie obsługuje powiadomień na tej stronie.");
       return;
     }
-    const permission = Notification.permission === "granted"
-      ? "granted" : await Notification.requestPermission();
-    if (permission !== "granted") {
-      setNotifyStatus("Powiadomienia są zablokowane. Zezwól na nie w ustawieniach tej witryny w przeglądarce.");
-      return;
+    setNotifyPending(true);
+    setNotifyStatus("Czekam na zgodę przeglądarki. Sprawdź też ikonę przy pasku adresu.");
+    try {
+      const permission = Notification.permission === "granted"
+        ? "granted" : await Notification.requestPermission();
+      if (permission !== "granted") {
+        setNotifyStatus(permission === "denied"
+          ? "Powiadomienia zablokowane. Zmień uprawnienia tej witryny przy pasku adresu."
+          : "Nie udzielono zgody. Kliknij ponownie i sprawdź ikonę przy pasku adresu.");
+        return;
+      }
+      localStorage.setItem(notificationKeys.enabled, "true");
+      localStorage.removeItem(notificationKeys.cursor);
+      setNotifyEnabled(true);
+      setNotifyStatus("Powiadomienia włączone. Możesz wysłać powiadomienie testowe.");
+      void pollNotifications();
+    } catch {
+      setNotifyStatus("Nie udało się poprosić o zgodę. Sprawdź uprawnienia tej witryny w przeglądarce.");
+    } finally {
+      setNotifyPending(false);
     }
-    localStorage.setItem(notificationKeys.enabled, "true");
-    localStorage.removeItem(notificationKeys.cursor);
-    setNotifyEnabled(true);
-    setNotifyStatus("Powiadomienia włączone w tej przeglądarce.");
-    void pollNotifications();
+  }
+  function testNotification() {
+    try {
+      if (!notifyEnabled || typeof Notification === "undefined") {
+        setNotifyStatus("Powiadomienia są zablokowane w przeglądarce.");
+        return;
+      }
+      new Notification("Powiadomienia Tatravet działają", {
+        body: "Tak będzie wyglądać powiadomienie o nowej sprawie.",
+      });
+      setNotifyStatus("Wysłano powiadomienie testowe. Jeśli go nie widać, sprawdź powiadomienia systemowe.");
+    } catch {
+      setNotifyStatus("Przeglądarka nie mogła wyświetlić powiadomienia. Sprawdź jej ustawienia.");
+    }
   }
   const load = useCallback(async () => {
     const generationId = ++generation.current;
@@ -722,7 +755,9 @@ export default function Dashboard({
                     notifyEnabled={notifyEnabled}
                     notifyInterval={notifyInterval}
                     notifyStatus={notifyStatus}
+                    notifyPending={notifyPending}
                     toggleNotifications={toggleNotifications}
+                    testNotification={testNotification}
                     changeNotifyInterval={(value) => {
                       setNotifyInterval(value);
                       localStorage.setItem(notificationKeys.interval, String(value));
@@ -979,7 +1014,9 @@ function SettingsPanel({
   notifyEnabled,
   notifyInterval,
   notifyStatus,
+  notifyPending,
   toggleNotifications,
+  testNotification,
   changeNotifyInterval,
 }: {
   username: string;
@@ -991,7 +1028,9 @@ function SettingsPanel({
   notifyEnabled: boolean;
   notifyInterval: number;
   notifyStatus: string;
+  notifyPending: boolean;
   toggleNotifications: () => void;
+  testNotification: () => void;
   changeNotifyInterval: (value: number) => void;
 }) {
   const [error, setError] = useState(""),
@@ -1081,17 +1120,18 @@ function SettingsPanel({
         <section className="panel notification-settings">
           <h2>Powiadomienia o oddzwonieniu</h2>
           <p className="section-description">Przeglądarka powiadomi Cię o nowej sprawie, gdy panel jest otwarty.</p>
-          <button className="button notification-toggle" onClick={toggleNotifications} aria-pressed={notifyEnabled}>
+          <button className="button notification-toggle" onClick={toggleNotifications} aria-pressed={notifyEnabled} disabled={notifyPending}>
             <Bell size={17} />
-            {notifyEnabled ? "Wyłącz powiadomienia" : "Włącz powiadomienia"}
+            {notifyPending ? "Oczekiwanie na zgodę…" : notifyEnabled ? "Wyłącz powiadomienia" : "Włącz powiadomienia"}
           </button>
+          {notifyEnabled && <button className="text-button notification-test" onClick={testNotification}>Wyślij powiadomienie testowe</button>}
           <label className="notification-interval">
             Sprawdzaj nowe sprawy co
             <select value={notifyInterval} onChange={(event) => changeNotifyInterval(Number(event.target.value))}>
               {notificationIntervals.map(([ms, label]) => <option key={ms} value={ms}>{label}</option>)}
             </select>
           </label>
-          {notifyStatus && <p className="small muted" role="status">{notifyStatus}</p>}
+          {notifyStatus && <p className="notification-feedback" role="status" aria-live="polite">{notifyStatus}</p>}
           <p className="small muted">Liczba spraw do oddzwonienia jest zawsze widoczna w tytule karty.</p>
         </section>
         <section className="panel">

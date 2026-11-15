@@ -95,6 +95,9 @@ test("clinic workflow, analytics, copy link and logout", async ({
   await context.grantPermissions(["notifications"]);
   await page.getByRole("button", { name: "Włącz powiadomienia" }).click();
   await expect(page.getByRole("button", { name: "Wyłącz powiadomienia" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".notification-feedback")).toContainText("Powiadomienia włączone");
+  await page.getByRole("button", { name: "Wyślij powiadomienie testowe" }).click();
+  await expect(page.locator(".notification-feedback")).toContainText(/Wysłano powiadomienie testowe|nie mogła wyświetlić powiadomienia/);
   await page.getByLabel("Sprawdzaj nowe sprawy co").selectOption("120000");
   await expect(page.getByLabel("Sprawdzaj nowe sprawy co")).toHaveValue("120000");
   await expect(page).toHaveTitle(/^\(\d+\) Tatravet · Panel połączeń$/);
