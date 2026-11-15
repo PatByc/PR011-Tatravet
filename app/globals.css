@@ -255,8 +255,6 @@ button.primary,
 .notification-permission strong { color: var(--ink); font-weight: 600; }
 .notification-toggle[aria-pressed="true"] { border-color: var(--green); color: var(--green-dark); }
 .notification-help { margin: 10px 0 0; line-height: 1.5; }
-.notification-interval { display: grid; gap: 8px; margin-top: 20px; font-size: 12px; font-weight: 500; }
-.notification-interval select { max-width: 220px; }
 .notification-test { display: block; margin-top: 14px; }
 .notification-feedback { margin: 14px 0 0; padding: 10px 12px; border-radius: 8px; background: var(--green-pale); color: var(--green-dark); font-size: 12px; line-height: 1.5; }
 .sidebar-bottom {

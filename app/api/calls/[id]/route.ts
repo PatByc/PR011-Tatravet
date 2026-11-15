@@ -2,6 +2,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { apiError, checkOrigin, HttpError, json, jsonBody } from "@/lib/http";
+import { signalDashboardChange } from "@/lib/realtime";
 type Context = { params: Promise<{ id: string }> };
 async function find(id: string) {
   const call = await db.call.findFirst({
@@ -45,7 +46,9 @@ export async function PATCH(request: Request, context: Context) {
         409,
         "Ktoś zmienił tę notatkę. Otwórz połączenie ponownie przed zapisem.",
       );
-    return json(await find(call.id));
+    const updated = await find(call.id);
+    try { await signalDashboardChange(); } catch { /* The saved edit remains available on reconnect. */ }
+    return json(updated);
   } catch (error) {
     return apiError(error);
   }

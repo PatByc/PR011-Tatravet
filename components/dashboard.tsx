@@ -69,13 +69,8 @@ const reasonColors: Record<string, string> = {
   unknown: "#c8cdc4",
 };
 type Tab = "overview" | "calls" | "analytics" | "settings";
-const notificationIntervals = [
-  [15000, "15 sekund"], [30000, "30 sekund"], [60000, "1 minuta"],
-  [120000, "2 minuty"], [300000, "5 minut"], [600000, "10 minut"],
-] as const;
 const notificationKeys = {
   enabled: "tatravet.notifications.enabled",
-  interval: "tatravet.notifications.interval",
   cursor: "tatravet.notifications.cursor",
 };
 type BrowserNotificationPermission = NotificationPermission | "unsupported";
@@ -149,7 +144,6 @@ export default function Dashboard({
     [selected, setSelected] = useState<string | null>(null),
     [toast, setToast] = useState("");
   const [notifyEnabled, setNotifyEnabled] = useState(false);
-  const [notifyInterval, setNotifyInterval] = useState(30000);
   const [notifyStatus, setNotifyStatus] = useState("");
   const [notifyPending, setNotifyPending] = useState(false);
   const [browserPermission, setBrowserPermission] = useState<BrowserNotificationPermission>("unsupported");
@@ -206,8 +200,6 @@ export default function Dashboard({
       if (savedEnabled && Notification.permission === "denied")
         setNotifyStatus("Sprawdź, czy ta witryna ma zgodę na powiadomienia w przeglądarce.");
     }
-    const saved = Number(localStorage.getItem(notificationKeys.interval));
-    if (notificationIntervals.some(([ms]) => ms === saved)) setNotifyInterval(saved);
     const refreshPermission = () => setBrowserPermission(browserNotificationPermission());
     window.addEventListener("focus", refreshPermission);
     document.addEventListener("visibilitychange", refreshPermission);
@@ -220,13 +212,6 @@ export default function Dashboard({
     document.title = openCount ? `(${openCount}) Tatravet · Panel połączeń` : "Tatravet · Panel połączeń";
     return () => { document.title = "Tatravet · Panel połączeń"; };
   }, [openCount]);
-  useEffect(() => {
-    void pollNotifications();
-    const timer = setInterval(() => void pollNotifications(), notifyInterval);
-    const onVisible = () => { if (document.visibilityState === "visible") void pollNotifications(); };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); };
-  }, [notifyInterval, pollNotifications]);
   async function toggleNotifications() {
     if (notifyPending) return;
     if (notifyEnabled) {
@@ -315,14 +300,39 @@ export default function Dashboard({
   useEffect(() => {
     setLoading(true);
     void load();
-    const timer = setInterval(() => {
-      if (document.visibilityState === "visible") void load();
-    }, 30000);
     return () => {
-      clearInterval(timer);
       generation.current++;
     };
   }, [load]);
+  const loadRef = useRef(load);
+  useEffect(() => { loadRef.current = load; }, [load]);
+  const rangeRef = useRef({ preset, to });
+  useEffect(() => { rangeRef.current = { preset, to }; }, [preset, to]);
+  useEffect(() => {
+    void pollNotifications();
+    const refresh = () => {
+      void pollNotifications();
+      const today = shiftDay(0);
+      if (rangeRef.current.preset !== "custom" && rangeRef.current.to !== today) {
+        setFrom(shiftDay(Number(rangeRef.current.preset) - 1));
+        setTo(today);
+        setPage(1);
+      } else {
+        void loadRef.current();
+      }
+    };
+    const events = new EventSource("/api/events");
+    events.onopen = refresh;
+    events.addEventListener("refresh", refresh);
+    const onVisible = () => { if (document.visibilityState === "visible") refresh(); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", refresh);
+    return () => {
+      events.close();
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [pollNotifications]);
   useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(""), 4000);
@@ -786,16 +796,11 @@ export default function Dashboard({
                     connection={connection}
                     lastSync={lastSync || null}
                     notifyEnabled={notifyEnabled}
-                    notifyInterval={notifyInterval}
                     notifyStatus={notifyStatus}
                     notifyPending={notifyPending}
                     browserPermission={browserPermission}
                     toggleNotifications={toggleNotifications}
                     testNotification={testNotification}
-                    changeNotifyInterval={(value) => {
-                      setNotifyInterval(value);
-                      localStorage.setItem(notificationKeys.interval, String(value));
-                    }}
                   />
                 )}
                 <footer className="content-footer">
@@ -1061,13 +1066,11 @@ function SettingsPanel({
   connection,
   lastSync,
   notifyEnabled,
-  notifyInterval,
   notifyStatus,
   notifyPending,
   browserPermission,
   toggleNotifications,
   testNotification,
-  changeNotifyInterval,
 }: {
   username: string;
   publicUrl: string;
@@ -1076,13 +1079,11 @@ function SettingsPanel({
   connection: string;
   lastSync: string | null;
   notifyEnabled: boolean;
-  notifyInterval: number;
   notifyStatus: string;
   notifyPending: boolean;
   browserPermission: BrowserNotificationPermission;
   toggleNotifications: () => void;
   testNotification: () => void;
-  changeNotifyInterval: (value: number) => void;
 }) {
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
@@ -1179,12 +1180,6 @@ function SettingsPanel({
           {browserPermission === "denied" && <p className="small muted notification-help">Aby zezwolić, otwórz uprawnienia witryny przy pasku adresu i wybierz Powiadomienia → Zezwalaj.</p>}
           {browserPermission === "unsupported" && <p className="small muted notification-help">Powiadomienia w panelu nadal będą widoczne przy otwartej karcie.</p>}
           {notifyEnabled && <button className="text-button notification-test" onClick={testNotification}>Wyślij powiadomienie testowe</button>}
-          <label className="notification-interval">
-            Sprawdzaj nowe sprawy co
-            <select value={notifyInterval} onChange={(event) => changeNotifyInterval(Number(event.target.value))}>
-              {notificationIntervals.map(([ms, label]) => <option key={ms} value={ms}>{label}</option>)}
-            </select>
-          </label>
           {notifyStatus && <p className="notification-feedback" role="status" aria-live="polite">{notifyStatus}</p>}
           <p className="small muted">Liczba spraw do oddzwonienia jest zawsze widoczna w tytule karty.</p>
         </section>

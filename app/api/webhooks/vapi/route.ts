@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { ingestCall } from "@/lib/vapi";
 import { apiError, HttpError, json, jsonBody } from "@/lib/http";
+import { signalDashboardChange } from "@/lib/realtime";
 export async function POST(request: Request) {
   try {
     const secret = process.env.VAPI_WEBHOOK_SECRET;
@@ -27,12 +28,14 @@ export async function POST(request: Request) {
       ...(message.endedReason ? { endedReason: message.endedReason } : {}),
     };
     const accepted = await ingestCall(raw, message.type === "end-of-call-report");
-    if (accepted)
+    if (accepted) {
       await db.syncState.upsert({
         where: { id: "vapi" },
         create: { id: "vapi", lastWebhook: new Date() },
         update: { lastWebhook: new Date() },
       });
+      try { await signalDashboardChange(); } catch { /* Saved calls remain available on reconnect. */ }
+    }
     return json({ accepted });
   } catch (error) {
     if (error instanceof z.ZodError)

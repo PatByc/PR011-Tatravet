@@ -24,6 +24,7 @@ async function login(page: import("@playwright/test").Page) {
 test("protects data and rejects cross-origin login", async ({ request }) => {
   expect((await request.get("/api/dashboard")).status()).toBe(401);
   expect((await request.get("/api/notifications")).status()).toBe(401);
+  expect((await request.get("/api/events")).status()).toBe(401);
   expect((await request.get("/api/calls/demo-0")).status()).toBe(401);
   expect(
     (
@@ -98,8 +99,6 @@ test("clinic workflow, analytics, copy link and logout", async ({
   await expect(page.locator(".notification-feedback")).toContainText("Powiadomienia włączone");
   await page.getByRole("button", { name: "Wyślij powiadomienie testowe" }).click();
   await expect(page.locator(".notification-feedback")).toContainText(/Wysłano powiadomienie testowe|nie mogła wyświetlić powiadomienia/);
-  await page.getByLabel("Sprawdzaj nowe sprawy co").selectOption("120000");
-  await expect(page.getByLabel("Sprawdzaj nowe sprawy co")).toHaveValue("120000");
   await expect(page).toHaveTitle(/^\(\d+\) Tatravet · Panel połączeń$/);
   await page.getByRole("button", { name: "Wyloguj się" }).click();
   await expect(page).toHaveURL(/login/);
@@ -138,6 +137,7 @@ test("mobile layout remains usable and contains table overflow", async ({
 });
 test("new callback stays visible in the dashboard without browser permission", async ({ page }) => {
   let checks = 0;
+  await page.route("**/api/events", (route) => route.fulfill({ status: 503, body: "" }));
   await page.route("**/api/notifications*", async (route) => {
     checks++;
     await route.fulfill({ json: {
