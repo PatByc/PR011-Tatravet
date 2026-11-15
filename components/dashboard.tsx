@@ -78,6 +78,11 @@ const notificationKeys = {
   interval: "tatravet.notifications.interval",
   cursor: "tatravet.notifications.cursor",
 };
+type BrowserNotificationPermission = NotificationPermission | "unsupported";
+const browserNotificationPermission = (): BrowserNotificationPermission =>
+  typeof Notification === "undefined" || !window.isSecureContext
+    ? "unsupported"
+    : Notification.permission;
 const tabs = [
   { id: "overview" as const, label: "Przegląd", icon: LayoutDashboard },
   { id: "calls" as const, label: "Połączenia", icon: Phone },
@@ -147,9 +152,12 @@ export default function Dashboard({
   const [notifyInterval, setNotifyInterval] = useState(30000);
   const [notifyStatus, setNotifyStatus] = useState("");
   const [notifyPending, setNotifyPending] = useState(false);
+  const [browserPermission, setBrowserPermission] = useState<BrowserNotificationPermission>("unsupported");
   const [openCount, setOpenCount] = useState(0);
+  const [newCallbackCount, setNewCallbackCount] = useState(0);
   const generation = useRef(0);
   const pollingNotifications = useRef(false);
+  const firstNotificationPoll = useRef(true);
   const pollNotifications = useCallback(async () => {
     if (pollingNotifications.current) return;
     pollingNotifications.current = true;
@@ -160,11 +168,14 @@ export default function Dashboard({
       );
       setOpenCount(result.openCount);
       const nextCursor = result.cursor ? JSON.stringify(result.cursor) : null;
-      if (nextCursor && nextCursor !== previous && localStorage.getItem(notificationKeys.enabled) === "true") {
+      if (nextCursor && nextCursor !== previous) {
         // A shared cursor prevents ordinary reloads and other open tabs from replaying alerts.
         if (localStorage.getItem(notificationKeys.cursor) === previous) {
           localStorage.setItem(notificationKeys.cursor, nextCursor);
-          if (previous && result.newCount > 0 && typeof Notification !== "undefined") {
+          if (previous && result.newCount > 0) {
+            if (!firstNotificationPoll.current) setNewCallbackCount((count) => count + result.newCount);
+          }
+          if (previous && result.newCount > 0 && localStorage.getItem(notificationKeys.enabled) === "true" && browserNotificationPermission() === "granted") {
             try {
               const notice = new Notification(
                 result.newCount === 1 ? "Nowa sprawa do oddzwonienia" : `${result.newCount} nowe sprawy do oddzwonienia`,
@@ -177,6 +188,7 @@ export default function Dashboard({
           }
         }
       }
+      firstNotificationPoll.current = false;
     } catch {
       // The dashboard continues to work if notification checks are unavailable.
     } finally {
@@ -185,6 +197,7 @@ export default function Dashboard({
   }, []);
   useEffect(() => {
     const savedEnabled = localStorage.getItem(notificationKeys.enabled) === "true";
+    setBrowserPermission(browserNotificationPermission());
     if (savedEnabled && typeof Notification === "undefined") {
       localStorage.setItem(notificationKeys.enabled, "false");
       setNotifyStatus("Ta przeglądarka nie obsługuje powiadomień na tej stronie.");
@@ -195,6 +208,13 @@ export default function Dashboard({
     }
     const saved = Number(localStorage.getItem(notificationKeys.interval));
     if (notificationIntervals.some(([ms]) => ms === saved)) setNotifyInterval(saved);
+    const refreshPermission = () => setBrowserPermission(browserNotificationPermission());
+    window.addEventListener("focus", refreshPermission);
+    document.addEventListener("visibilitychange", refreshPermission);
+    return () => {
+      window.removeEventListener("focus", refreshPermission);
+      document.removeEventListener("visibilitychange", refreshPermission);
+    };
   }, []);
   useEffect(() => {
     document.title = openCount ? `(${openCount}) Tatravet · Panel połączeń` : "Tatravet · Panel połączeń";
@@ -249,6 +269,7 @@ export default function Dashboard({
     } catch {
       setNotifyStatus("Nie udało się poprosić o zgodę. Sprawdź uprawnienia tej witryny w przeglądarce.");
     } finally {
+      setBrowserPermission(browserNotificationPermission());
       if (permissionTimeout) clearTimeout(permissionTimeout);
       setNotifyPending(false);
     }
@@ -768,6 +789,7 @@ export default function Dashboard({
                     notifyInterval={notifyInterval}
                     notifyStatus={notifyStatus}
                     notifyPending={notifyPending}
+                    browserPermission={browserPermission}
                     toggleNotifications={toggleNotifications}
                     testNotification={testNotification}
                     changeNotifyInterval={(value) => {
@@ -811,6 +833,21 @@ export default function Dashboard({
         <div className="toast" role="status">
           <Check size={18} />
           {toast}
+        </div>
+      )}
+      {newCallbackCount > 0 && (
+        <div className="callback-alert" role="status" aria-live="polite">
+          <span className="callback-alert-icon"><Bell size={19} aria-hidden="true" /></span>
+          <div className="callback-alert-copy">
+            <strong>{newCallbackCount === 1 ? "Nowa sprawa do oddzwonienia" : `${newCallbackCount} nowe sprawy do oddzwonienia`}</strong>
+            <span>Sprawdź połączenia w panelu.</span>
+          </div>
+          <button className="callback-alert-action" onClick={() => {
+            navigate("calls");
+            setFollow("CALLBACK");
+            setNewCallbackCount(0);
+          }}>Zobacz</button>
+          <button className="callback-alert-dismiss" onClick={() => setNewCallbackCount(0)} aria-label="Zamknij powiadomienie"><X size={16} /></button>
         </div>
       )}
     </div>
@@ -1027,6 +1064,7 @@ function SettingsPanel({
   notifyInterval,
   notifyStatus,
   notifyPending,
+  browserPermission,
   toggleNotifications,
   testNotification,
   changeNotifyInterval,
@@ -1041,6 +1079,7 @@ function SettingsPanel({
   notifyInterval: number;
   notifyStatus: string;
   notifyPending: boolean;
+  browserPermission: BrowserNotificationPermission;
   toggleNotifications: () => void;
   testNotification: () => void;
   changeNotifyInterval: (value: number) => void;
@@ -1131,11 +1170,14 @@ function SettingsPanel({
       <div className="settings-side">
         <section className="panel notification-settings">
           <h2>Powiadomienia o oddzwonieniu</h2>
-          <p className="section-description">Przeglądarka powiadomi Cię o nowej sprawie, gdy panel jest otwarty.</p>
+          <p className="section-description">Nowa sprawa pojawi się w panelu, gdy karta jest otwarta. Powiadomienia systemowe wymagają zgody przeglądarki.</p>
+          <p className="notification-permission">Zgoda przeglądarki: <strong>{browserPermission === "granted" ? "Zezwolono" : browserPermission === "denied" ? "Zablokowano" : browserPermission === "default" ? "Nie udzielono" : "Niedostępne"}</strong></p>
           <button className="button notification-toggle" onClick={toggleNotifications} aria-pressed={notifyEnabled} disabled={notifyPending}>
             <Bell size={17} />
-            {notifyPending ? "Oczekiwanie na zgodę…" : notifyEnabled ? "Wyłącz powiadomienia" : "Włącz powiadomienia"}
+            {notifyPending ? "Oczekiwanie na zgodę…" : notifyEnabled ? "Wyłącz powiadomienia systemowe" : "Włącz powiadomienia systemowe"}
           </button>
+          {browserPermission === "denied" && <p className="small muted notification-help">Aby zezwolić, otwórz uprawnienia witryny przy pasku adresu i wybierz Powiadomienia → Zezwalaj.</p>}
+          {browserPermission === "unsupported" && <p className="small muted notification-help">Powiadomienia w panelu nadal będą widoczne przy otwartej karcie.</p>}
           {notifyEnabled && <button className="text-button notification-test" onClick={testNotification}>Wyślij powiadomienie testowe</button>}
           <label className="notification-interval">
             Sprawdzaj nowe sprawy co

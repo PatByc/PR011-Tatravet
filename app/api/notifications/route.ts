@@ -7,13 +7,14 @@ export async function GET(request: Request) {
   try {
     await requireUser();
     const demo = process.env.DEMO_MODE === "true";
+    const checkedAt = new Date();
     const after = new URL(request.url).searchParams.get("after");
     let cursor: { at: Date; id: string } | null = null;
     if (after) {
       try {
         const parsed = JSON.parse(after);
         const at = new Date(parsed.at);
-        if (typeof parsed.id !== "string" || parsed.id.length > 200 || !parsed.id || Number.isNaN(at.getTime())) throw new Error();
+        if (typeof parsed.id !== "string" || parsed.id.length > 200 || Number.isNaN(at.getTime())) throw new Error();
         cursor = { at, id: parsed.id };
       } catch {
         throw new HttpError(400, "Nieprawidłowy punkt powiadomień.");
@@ -29,7 +30,7 @@ export async function GET(request: Request) {
       !demo && cursor ? db.call.count({ where: newWhere }) : Promise.resolve(0),
       db.call.count({ where: { isDemo: demo, followUp: "CALLBACK" } }),
     ]);
-    return json({ cursor: latest?.reportedAt ? { at: latest.reportedAt.toISOString(), id: latest.id } : null, newCount, openCount });
+    return json({ cursor: demo ? null : latest?.reportedAt ? { at: latest.reportedAt.toISOString(), id: latest.id } : { at: checkedAt.toISOString(), id: "" }, newCount, openCount });
   } catch (error) {
     return apiError(error);
   }

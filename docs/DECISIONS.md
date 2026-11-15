@@ -26,7 +26,7 @@ Set `Do oddzwonienia` only when the EOCR has structured `wymagaOddzwonienia: tru
 
 ## Accepted — browser notifications for new callback actions
 
-Use a browser permission switch and configurable polling (15 seconds to 10 minutes) while the dashboard is open. A generic system notification appears only for newly reported real calls needing callback; the tab title counts all open callback actions in the current mode. The first report timestamp prevents duplicate webhook alerts. Existing calls count but do not trigger launch-day popups. No push service, installed app or taskbar badge in this version.
+Use a browser permission switch and configurable polling (15 seconds to 10 minutes) while the dashboard is open. A persistent in-panel alert appears for newly reported real calls needing callback, regardless of browser permission. An optional generic system notification uses the same event after permission is granted; the tab title counts all open callback actions in the current mode. The first report timestamp prevents duplicate webhook alerts. Existing calls count but do not trigger launch-day popups. No push service, installed app or taskbar badge in this version.
 
 ## Accepted — cache dependency layers and trim production packaging
 
