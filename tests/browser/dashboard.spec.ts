@@ -143,7 +143,7 @@ test("new call stays visible in the dashboard without browser permission", async
     await route.fulfill({ json: {
       cursor: { at: checks === 1 ? "2026-11-15T10:00:00.000Z" : "2026-11-15T10:01:00.000Z", id: checks === 1 ? "initial" : "new-call" },
       newCount: checks === 1 ? 0 : 1,
-      newCallbackCount: 0,
+      newCallbackCount: checks === 1 ? 0 : 1,
     } });
   });
   await login(page);
@@ -152,7 +152,7 @@ test("new call stays visible in the dashboard without browser permission", async
   await expect(page.locator(".callback-alert")).toHaveCount(0);
   await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
   await expect(page.locator(".callback-alert")).toContainText("Nowe połączenie");
-  await expect(page.locator(".callback-alert")).toContainText("Bez dalszego działania.");
+  await expect(page.locator(".callback-alert")).toContainText("Wymaga oddzwonienia.");
   await expect(page).toHaveTitle("(1) Tatravet · Panel połączeń");
   await page.locator(".callback-alert-action").click();
   await expect(page.locator(".callback-alert")).toHaveCount(0);

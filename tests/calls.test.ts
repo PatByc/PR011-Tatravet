@@ -7,6 +7,7 @@ import {
   vapiCallSchema,
 } from "../lib/calls";
 import { dateRange, dayKey } from "../lib/dates";
+import reconstructedEocr from "./fixtures/reconstructed-last-eocr.json";
 const source = {
   id: "call-1",
   assistantId: "clinic",
@@ -74,6 +75,12 @@ describe("Vapi ingestion rules", () => {
     const call = normalizeCall(parsed);
     expect(call.contactReason).toBe("appointment");
     expect(call).not.toHaveProperty("opisPowodu");
+  });
+  it("classifies the redacted reconstruction of the last reported call", () => {
+    const { call, artifact } = reconstructedEocr.message;
+    const parsed = vapiCallSchema.parse({ ...call, artifact });
+    expect(normalizeCall(parsed).contactReason).toBe("appointment");
+    expect(callbackRequired(parsed)).toBe(true);
   });
   it("does not infer callback status from the transcript", () => {
     const call = vapiCallSchema.parse({
