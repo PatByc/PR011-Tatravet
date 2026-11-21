@@ -5,6 +5,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { db } from "./db";
 import { assistantIds } from "./vapi";
 import { safeErrorDetails } from "./diagnostics";
+import { recordingStorageVariables } from "./recording-config";
 
 const maxRecordingBytes = 100 * 1024 * 1024;
 const retryDelayMs = 6 * 60 * 60 * 1000;
@@ -22,12 +23,7 @@ function requiredConfig(name: string) {
 }
 
 function storageConfig() {
-  const endpoint = requiredConfig("RECORDINGS_ENDPOINT");
-  const bucket = requiredConfig("RECORDINGS_BUCKET");
-  const region = requiredConfig("RECORDINGS_REGION");
-  const accessKeyId = requiredConfig("RECORDINGS_ACCESS_KEY_ID");
-  const secretAccessKey = requiredConfig("RECORDINGS_SECRET_ACCESS_KEY");
-  if (!endpoint.startsWith("https://")) throw archiveError("RECORDINGS_ENDPOINT_INVALID");
+  const { endpoint, bucket, region, accessKeyId, secretAccessKey } = recordingStorageVariables();
   return {
     bucket,
     client: new S3Client({ endpoint, region, credentials: { accessKeyId, secretAccessKey } }),
