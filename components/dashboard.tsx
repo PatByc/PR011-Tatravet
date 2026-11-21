@@ -1416,8 +1416,10 @@ function CallDetail({
                 <audio className="call-recording" controls preload="none" src={`/api/calls/${encodeURIComponent(call.id)}/recording`}>
                   Twoja przeglądarka nie obsługuje odtwarzania nagrań.
                 </audio>
-              ) : call.recordingState === "PENDING" || call.recordingState === "PROCESSING" ? (
-                <p className="muted">Nagranie jest archiwizowane. Sprawdź ponownie później.</p>
+              ) : call.recordingState === "PENDING" ? (
+                <p className="muted">Nagranie oczekuje na skopiowanie do archiwum. Sprawdź ponownie później.</p>
+              ) : call.recordingState === "PROCESSING" ? (
+                <p className="muted">Trwa archiwizacja nagrania. Sprawdź ponownie później.</p>
               ) : call.recordingState === "FAILED" ? (
                 <p className="muted">Nie udało się jeszcze zarchiwizować nagrania. System spróbuje ponownie.</p>
               ) : (

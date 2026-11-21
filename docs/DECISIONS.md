@@ -6,7 +6,7 @@ Build specifically for Tatravet with one shared clinic account. This keeps v1 sm
 
 ## Accepted — Railway application and PostgreSQL
 
-Host the web service, scheduled Vapi reconciliation, and PostgreSQL on Railway. Use the clinic subdomain liniavet.tatravet.pl; the owner manages DNS. Deployment and live integration validation remain outstanding.
+Host the dashboard and PostgreSQL on Railway. Vapi call data arrives through webhooks; there is no scheduled call synchronization. Use the clinic subdomain liniavet.tatravet.pl; the owner manages DNS.
 
 ## Accepted — authenticated link sharing
 
@@ -18,7 +18,7 @@ Store transcripts, available summaries and call metadata, excluding Vapi costs. 
 
 ## Accepted later — timed speech turns and private recording archive
 
-Keep timed assistant/caller turns from the end-of-call report as compact JSON alongside the plain transcript. Archive recordings into a private Railway bucket; PostgreSQL stores only archive metadata and an object key. A short-lived signed URL is issued after clinic session authorization for playback. The archive has its own hourly Railway cron service and private Vapi API key; the dashboard's Vapi call integration remains webhook-only. A clinic retention decision is still needed before long-term recording collection.
+Keep timed assistant/caller turns from the end-of-call report as compact JSON alongside the plain transcript. PostgreSQL remains the source for accounts, sessions, indexed call searches, analytics, and transactional staff notes. Store audio files in a private Railway bucket: object storage costs less per GB and keeps large binary files out of PostgreSQL and its backups. PostgreSQL stores only each recording's archive state, size, type, and object key. A short-lived signed URL is issued after clinic session authorization for playback. A separate Railway cron service checks every 15 minutes for completed calls and copies their recordings from Vapi into the bucket; it exits between runs and is not an always-on worker. Its private Vapi API key is not needed by the dashboard webhook. A clinic retention decision is still needed before long-term recording collection.
 
 ## Accepted — one contact reason per call
 

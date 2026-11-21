@@ -24,9 +24,8 @@ The analytics tab groups each call by one structured contact reason supplied by 
 
 ## Awaiting external setup
 
-- Railway deployment, production account and database backups.
-- Custom domain DNS/TLS configuration by the owner.
-- Finished Vapi assistant, credentials and live-call acceptance testing.
+- Private Railway recording bucket and scheduled archive service, with a live recording copy and playback check.
+- Database backups and any remaining production account or domain configuration.
 - Production data retention decision.
 
 ## Outside v1
