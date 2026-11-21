@@ -58,6 +58,7 @@ describe.skipIf(!enabled)("PostgreSQL integration", () => {
     const id = "integration-notification";
     const call = { ...source, id, createdAt: "2026-11-08T10:00:00Z", startedAt: "2026-11-08T10:00:10Z", endedAt: "2026-11-08T10:02:10Z", artifact: {
       transcript: "Test",
+      messages: [{ role: "assistant", message: "Test", time: 0.5 }],
       structuredOutputs: { output: { name: "PR011 Tatravet — Powód kontaktu", result: { powodKontaktu: "Umówienie wizyty" } } },
     } };
     await ingestCall({ ...call, endedAt: undefined, status: "in-progress" });
@@ -66,11 +67,17 @@ describe.skipIf(!enabled)("PostgreSQL integration", () => {
     const first = await db.call.findUniqueOrThrow({ where: { id } });
     expect(first.followUp).toBe("CALLBACK");
     expect(first.reportedAt).not.toBeNull();
+    expect(first.recordingState).toBe("PENDING");
+    expect(first.transcriptSegments).toEqual([{ role: "assistant", text: "Test", secondsFromStart: 0.5 }]);
     await ingestCall(call, true);
     expect((await db.call.findUniqueOrThrow({ where: { id } })).reportedAt).toEqual(first.reportedAt);
     await db.call.update({ where: { id }, data: { followUp: "DONE", followUpReviewed: true } });
+    await db.call.update({ where: { id }, data: { recordingState: "ARCHIVED", recordingObjectKey: "calls/test/mono" } });
     await ingestCall(call, true);
-    expect((await db.call.findUniqueOrThrow({ where: { id } })).followUp).toBe("DONE");
+    const final = await db.call.findUniqueOrThrow({ where: { id } });
+    expect(final.followUp).toBe("DONE");
+    expect(final.recordingState).toBe("ARCHIVED");
+    expect(final.recordingObjectKey).toBe("calls/test/mono");
   });
   it("handles sync window pagination, updates cursor only after success and keeps notes", async () => {
     process.env.VAPI_API_KEY = "test-key";

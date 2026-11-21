@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { callbackRequired, normalizeCall, mergeCall, vapiCallSchema } from "./calls";
+import { callbackRequired, normalizeCall, mergeCall, storedTranscriptSegments, vapiCallSchema } from "./calls";
 export const assistantIds = () =>
   (process.env.VAPI_ASSISTANT_IDS || "")
     .split(",")
@@ -14,7 +14,9 @@ export async function ingestCall(raw: unknown, endOfCallReport = false) {
     // Serialize webhook and cron writes for the same call, including its first insert.
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${call.id}))::text`;
     const existing = await tx.call.findUnique({ where: { id: call.id } });
-    const data = existing ? mergeCall(existing, normalized) : normalized;
+    const data = existing ? mergeCall({ ...existing, transcriptSegments: storedTranscriptSegments(existing.transcriptSegments) }, normalized) : normalized;
+    const { transcriptSegments, ...fields } = data;
+    const segmentField = transcriptSegments ? { transcriptSegments } : {};
     const followUp = existing && (existing.followUpReviewed || existing.revision > 0)
       ? existing.followUp
       : endOfCallReport
@@ -22,8 +24,9 @@ export async function ingestCall(raw: unknown, endOfCallReport = false) {
         : existing?.followUp || "NONE";
     await tx.call.upsert({
       where: { id: call.id },
-      create: { ...data, followUp, reportedAt: endOfCallReport ? new Date() : null },
-      update: { ...data, followUp, reportedAt: existing?.reportedAt || (endOfCallReport ? new Date() : null) },
+      create: { ...fields, ...segmentField, followUp, reportedAt: endOfCallReport ? new Date() : null, recordingState: endOfCallReport ? "PENDING" : "NONE" },
+      update: { ...fields, ...segmentField, followUp, reportedAt: existing?.reportedAt || (endOfCallReport ? new Date() : null),
+        ...(endOfCallReport && existing?.recordingState === "NONE" ? { recordingState: "PENDING" } : {}) },
     });
   });
   return true;

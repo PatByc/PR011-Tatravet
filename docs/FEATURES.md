@@ -10,6 +10,7 @@ The analytics tab groups each call by one structured contact reason supplied by 
 - Shared clinic login, password change, persistent three-day login sessions and revocation and operator account recovery.
 - Deployment startup checks for required variables and sanitized database error codes in server logs.
 - Searchable, paginated call history and transcript/detail view.
+- Timed assistant and caller turns when Vapi sends message timing; private recording archive and playback after the Railway bucket job is configured.
 - Callback queue, editable internal notes and conflict detection.
 - Automatic callback queue entry from a fixed mapping of EOCR contact reasons; staff decisions take precedence.
 - Daily/hourly analytics with Warsaw timezone handling.
@@ -30,4 +31,4 @@ The analytics tab groups each call by one structured contact reason supplied by 
 
 ## Outside v1
 
-Recordings, Vapi costs, individual staff accounts, public registration, multiple clinics, appointment scheduling and inferred booking conversion.
+Vapi costs, individual staff accounts, public registration, multiple clinics, appointment scheduling and inferred booking conversion.

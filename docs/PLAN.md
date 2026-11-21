@@ -7,6 +7,6 @@ Build a Polish, single-clinic call dashboard on Railway with PostgreSQL, a share
 3. Integration: authenticated Vapi webhooks, allowlisted assistant IDs, repeat-safe imports, 30-day initial synchronization and 15-minute reconciliation.
 4. Delivery: database migrations, Railway web/cron configuration, Docker packaging, deployment/account recovery guide, functional and browser tests.
 
-Public URL: https://liniavet.tatravet.pl. User configures Railway custom domain and Hostido DNS. No recording playback, Vapi cost reporting, public signup, multiple clinics, booking calendar, or invented business-outcome analytics.
+Public URL: https://liniavet.tatravet.pl. User configures Railway custom domain and Hostido DNS. Later work added timed transcript turns and private recording archival with playback. No Vapi cost reporting, public signup, multiple clinics, booking calendar, or invented business-outcome analytics.
 
 Acceptance: unauthenticated data access blocked; callback notes survive sync; Warsaw dates and DST correct; duplicate events safe; mobile usable; production build and functional checks pass. Live Vapi acceptance needs the finished assistant and credentials. Decide retention before collecting real calls.

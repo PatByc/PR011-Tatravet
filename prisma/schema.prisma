@@ -33,6 +33,12 @@ model Call {
   status String @default("queued")
   endedReason String?
   transcript String?
+  transcriptSegments Json?
+  recordingState String @default("NONE")
+  recordingObjectKey String?
+  recordingMime String?
+  recordingBytes Int?
+  recordingAttemptedAt DateTime?
   summary String?
   contactReason String?
   sourceUpdatedAt DateTime
@@ -45,6 +51,7 @@ model Call {
   updatedAt DateTime @updatedAt
   @@index([startedAt])
   @@index([isDemo, reportedAt])
+  @@index([recordingState, reportedAt])
   @@index([followUp, startedAt])
 }
 model SyncState {

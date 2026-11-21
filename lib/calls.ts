@@ -39,6 +39,37 @@ export function callbackRequired(call: VapiCall): boolean {
   const reason = extractedReason(call);
   return reason === "appointment" || reason === "appointment_change" || reason === "animal_health" || reason === "test_results";
 }
+const timedMessageSchema = z.object({
+  role: z.string(),
+  message: z.string().optional(),
+  text: z.string().optional(),
+  time: z.number().nullish(),
+  secondsFromStart: z.number().nullish(),
+}).passthrough();
+export type TranscriptSegment = { role: "assistant" | "user"; text: string; secondsFromStart: number };
+const storedSegmentSchema = z.array(z.object({
+  role: z.enum(["assistant", "user"]), text: z.string(), secondsFromStart: z.number(),
+}));
+export function storedTranscriptSegments(value: unknown): TranscriptSegment[] | null {
+  const parsed = storedSegmentSchema.safeParse(value);
+  return parsed.success && parsed.data.length ? parsed.data : null;
+}
+export function transcriptSegments(messages: unknown[] | null | undefined): TranscriptSegment[] | null {
+  if (!messages?.length) return null;
+  const segments = messages.flatMap((raw) => {
+    const parsed = timedMessageSchema.safeParse(raw);
+    if (!parsed.success) return [];
+    const entry = parsed.data;
+    const role: TranscriptSegment["role"] | null = entry.role === "assistant" || entry.role === "bot" ? "assistant"
+      : entry.role === "user" || entry.role === "customer" ? "user" : null;
+    if (!role) return [];
+    const text = entry.message || entry.text;
+    const seconds = entry.secondsFromStart ?? entry.time;
+    if (!text?.trim() || typeof seconds !== "number" || !Number.isFinite(seconds) || seconds < 0 || seconds > 86400) return [];
+    return [{ role, text: text.trim(), secondsFromStart: seconds }];
+  });
+  return segments.length ? segments : null;
+}
 export const vapiCallSchema = z.object({
   id: z.string().min(1).max(200),
   assistantId: z.string().min(1),
@@ -51,7 +82,8 @@ export const vapiCallSchema = z.object({
   customer: z.object({ number: z.string().max(100).optional() }).nullish(),
   transcript: z.string().nullish(),
   artifact: z.object({
-    transcript: z.string().nullish(),
+    transcript: z.union([z.string(), z.array(z.unknown())]).nullish(),
+    messages: z.array(z.unknown()).nullish(),
     structuredOutputs: z.record(z.string(), z.object({
       name: z.string().optional(),
       result: z.object({ contactReason: z.unknown().optional(), powodKontaktu: z.unknown().optional() }).passthrough().nullish(),
@@ -78,7 +110,8 @@ export function normalizeCall(call: VapiCall) {
         : null,
     status: endedAt ? "ended" : call.status || "queued",
     endedReason: call.endedReason || null,
-    transcript: call.artifact?.transcript || call.transcript || null,
+    transcript: typeof call.artifact?.transcript === "string" ? call.artifact.transcript : call.transcript || null,
+    transcriptSegments: transcriptSegments(call.artifact?.messages) || transcriptSegments(Array.isArray(call.artifact?.transcript) ? call.artifact.transcript : null),
     summary: call.analysis?.summary || null,
     contactReason: extractedReason(call),
     sourceUpdatedAt: new Date(call.updatedAt || call.endedAt || call.createdAt),
@@ -116,6 +149,7 @@ export function mergeCall(
     duration: base.duration ?? old.duration ?? incoming.duration,
     endedReason: base.endedReason || old.endedReason || incoming.endedReason,
     transcript: base.transcript || old.transcript || incoming.transcript,
+    transcriptSegments: base.transcriptSegments || old.transcriptSegments || incoming.transcriptSegments,
     summary: base.summary || old.summary || incoming.summary,
     contactReason: base.contactReason || old.contactReason || incoming.contactReason,
   };

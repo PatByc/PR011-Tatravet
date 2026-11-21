@@ -50,6 +50,38 @@ describe("Vapi ingestion rules", () => {
     expect(result.transcript).toBe("Rozmowa");
     expect(result.duration).toBe(110);
   });
+  it("stores timed speech turns and keeps them after a late status update", () => {
+    const report = normalizeCall(vapiCallSchema.parse({
+      ...source,
+      artifact: {
+        transcript: "AI: Dzień dobry.\nUser: Dzień dobry.",
+        messages: [
+          { type: "tool-call", toolCallId: "internal" },
+          { role: "system", message: "internal", time: 0 },
+          { role: "assistant", message: "Dzień dobry.", time: 0.4 },
+          { role: "user", message: "Dzień dobry.", secondsFromStart: 3.2 },
+          { role: "assistant", message: "No timing" },
+        ],
+      },
+    }));
+    expect(report.transcriptSegments).toEqual([
+      { role: "assistant", text: "Dzień dobry.", secondsFromStart: 0.4 },
+      { role: "user", text: "Dzień dobry.", secondsFromStart: 3.2 },
+    ]);
+    expect(mergeCall(report, normalizeCall({ ...source, status: "ringing" })).transcriptSegments).toEqual(report.transcriptSegments);
+  });
+  it("uses timed transcript entries when message history has no timing", () => {
+    const report = normalizeCall(vapiCallSchema.parse({
+      ...source,
+      artifact: {
+        messages: [{ role: "assistant", message: "Dzień dobry." }],
+        transcript: [{ role: "bot", message: "Dzień dobry.", time: 0.5 }],
+      },
+    }));
+    expect(report.transcriptSegments).toEqual([
+      { role: "assistant", text: "Dzień dobry.", secondsFromStart: 0.5 },
+    ]);
+  });
   it("reads only the named Vapi classification and preserves it through late events", () => {
     const report = vapiCallSchema.parse({
       ...source,

@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import Brand from "./brand";
 import { contactReasons, followLabels, statusLabels, terminationLabel } from "@/lib/calls";
+import type { TranscriptSegment } from "@/lib/calls";
 import type { DashboardData } from "@/lib/dashboard";
 type Serialized<T> = T extends Date
   ? string
@@ -52,12 +53,18 @@ type Data = Serialized<DashboardData>;
 type Call = Data["calls"][number];
 type Detail = Call & {
   transcript: string | null;
+  transcriptSegments: TranscriptSegment[] | null;
+  recordingState: string;
   note: string;
   revision: number;
   endedAt: string | null;
   summary: string | null;
   endedReason: string | null;
 };
+function transcriptTime(seconds: number) {
+  const total = Math.floor(seconds);
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
 const reasonColors: Record<string, string> = {
   appointment: "#4e9c2c",
   appointment_change: "#8dbd6a",
@@ -1404,8 +1411,36 @@ function CallDetail({
               </button>
             </div>
             <div className="detail-section">
+              <h3>Nagranie</h3>
+              {call.recordingState === "ARCHIVED" ? (
+                <audio className="call-recording" controls preload="none" src={`/api/calls/${encodeURIComponent(call.id)}/recording`}>
+                  Twoja przeglądarka nie obsługuje odtwarzania nagrań.
+                </audio>
+              ) : call.recordingState === "PENDING" || call.recordingState === "PROCESSING" ? (
+                <p className="muted">Nagranie jest archiwizowane. Sprawdź ponownie później.</p>
+              ) : call.recordingState === "FAILED" ? (
+                <p className="muted">Nie udało się jeszcze zarchiwizować nagrania. System spróbuje ponownie.</p>
+              ) : (
+                <p className="muted">Nagranie nie jest dostępne.</p>
+              )}
+            </div>
+            <div className="detail-section">
               <h3>Transkrypcja</h3>
-              {call.transcript ? (
+              {call.transcriptSegments?.length ? (
+                <ol className="transcript-turns">
+                  {call.transcriptSegments.map((segment, index) => (
+                    <li className="transcript-turn" key={index}>
+                      <time className="transcript-time" dateTime={`PT${Math.floor(segment.secondsFromStart)}S`} title="Czas od początku połączenia">
+                        {transcriptTime(segment.secondsFromStart)}
+                      </time>
+                      <div className="transcript-message">
+                        <span className="transcript-speaker">{segment.role === "assistant" ? "Asystent" : "Rozmówca"}</span>
+                        <p>{segment.text}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              ) : call.transcript ? (
                 <div className="transcript">{call.transcript}</div>
               ) : (
                 <p className="muted">

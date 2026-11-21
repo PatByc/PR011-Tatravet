@@ -1,6 +1,6 @@
 # Connecting the Vapi assistant (webhooks only)
 
-The selected integration sends Vapi events directly to the dashboard. No cron service or VAPI_API_KEY is required.
+The selected integration sends Vapi events directly to the dashboard. No call-sync cron service or VAPI_API_KEY is required for webhooks. The optional private recording archive described in [deployment](DEPLOYMENT.md#timed-transcripts-and-recording-archive) has its own hourly job and API key.
 
 ## Railway dashboard service variables
 
@@ -18,7 +18,7 @@ Apply/deploy the variable changes. Keep PUBLIC_URL matching the address used to 
 2. Choose Bearer Token, name it Tatravet Dashboard, paste the generated secret into Token, use Authorization as Header Name, and enable Include Bearer Prefix. Leave optional payload encryption disabled; this endpoint expects ordinary JSON over HTTPS.
 3. Open the saved Tatravet assistant → Advanced → Webhook Server. If a Server URL already handles tools or other business logic, preserve that integration and arrange event forwarding before replacing it.
 4. Set Server URL to `https://pr011-tatravet-production.up.railway.app/api/webhooks/vapi` and select the new credential under Authorization. When the custom domain is ready, this URL can use `https://liniavet.tatravet.pl/api/webhooks/vapi` instead.
-5. Enable status-update and end-of-call-report server messages. Publish the assistant settings. Configure transcript retention in Vapi as needed; summaries are optional and read from analysis.summary.
+5. Enable status-update and end-of-call-report server messages. Publish the assistant settings. Enable recording in Recording & Artifacts if you want the private archive, and ensure timed messages are included in the end-of-call report. Summaries are optional and read from analysis.summary.
 6. Make a test call, end it, and check Vapi's webhook delivery logs for a successful response with accepted: true. The open dashboard refreshes when the webhook is saved. Inspect the transcript, duration, and caller number when provided.
 
 ## Contact reasons in analytics
@@ -60,4 +60,4 @@ Only allowlisted assistant IDs are ingested. Credentials use `Authorization: Bea
 
 The dashboard reports waiting until its first accepted event and then shows the last received time. A quiet phone line does not count as a synchronization failure.
 
-Webhooks store only selected metadata, transcripts, and available summaries. They do not import historic calls. Calls/events never delivered to this endpoint cannot appear automatically. The legacy sync script remains in the repository but is not part of the selected deployment; do not create the cron service.
+Webhooks store only selected metadata, transcripts, timed turns when available, and available summaries. They do not import historic calls. Calls/events never delivered to this endpoint cannot appear automatically. The legacy call-sync script remains in the repository but is not part of the selected deployment; do not create a call-sync cron service. The separate recording archive job copies audio, not call records.

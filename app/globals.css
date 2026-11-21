@@ -1012,6 +1012,44 @@ progress::-moz-progress-bar {
   margin-top: 15px;
   overflow-wrap: anywhere;
 }
+.transcript-turns {
+  list-style: none;
+  margin: 15px 0 0;
+  padding: 0;
+  background: #f7f9f4;
+  border-radius: 8px;
+}
+.call-recording {
+  display: block;
+  margin-top: 14px;
+  max-width: 100%;
+  width: 100%;
+}
+.transcript-turn {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 13px;
+  padding: 13px 17px;
+}
+.transcript-turn + .transcript-turn {
+  border-top: 1px solid #e4eadf;
+}
+.transcript-time {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  padding-top: 2px;
+}
+.transcript-speaker {
+  color: #2f7564;
+  font-size: 12px;
+  font-weight: 700;
+}
+.transcript-message p {
+  line-height: 1.55;
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
 .login-layout {
   display: grid;
   grid-template-columns: 1fr 1fr;

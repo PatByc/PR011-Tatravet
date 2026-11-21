@@ -2,10 +2,10 @@
 
 ## Services
 
-Create a Railway project with PostgreSQL and one application service from this repository:
+Create a Railway project with PostgreSQL and the dashboard service from this repository. Add a private bucket and a second scheduled service when enabling recording archival:
 
 1. **Dashboard:** configuration file `/railway.json`. Docker build, pre-deploy `npm run db:migrate`, start `npm start`, health check `/api/health`.
-   The selected Vapi integration uses webhooks only. Do not create the cron service. The legacy sync configuration is not needed.
+   The selected Vapi call integration uses webhooks only. Do not create the legacy call-sync cron service. The recording archive job below is a separate task.
 
 Use a European Railway region for both app and database. Keep PostgreSQL private; app services use the database's internal `DATABASE_URL` reference. Configure daily backups on the PostgreSQL volume and test restoration to a separate database before launch.
 
@@ -20,6 +20,28 @@ Use a European Railway region for both app and database. Keep PostgreSQL private
 | `VAPI_WEBHOOK_SECRET` | Random bearer secret, at least 32 characters  |
 
 No VAPI_API_KEY is required for webhooks.
+
+## Timed transcripts and recording archive
+
+The dashboard saves the speech turns and elapsed seconds provided in Vapi's end-of-call report. New calls show `mm:ss` beside each assistant/caller turn. Calls with only a plain transcript keep the previous text view; this migration cannot invent timestamps for historical transcripts. Vapi must send timed `artifact.messages` or timed transcript entries in the report. See [Vapi call recording and transcription](https://docs.vapi.ai/assistants/call-recording).
+
+Audio files go into a **private Railway Storage Bucket**, not PostgreSQL. PostgreSQL keeps the archive state, object key, MIME type, and byte count. Existing calls with end-of-call reports from the previous 14 days are queued by the migration for a one-time archive attempt; older calls are not backfilled automatically. This uses the configured Vapi private API key to retrieve a recording, so the 14-day call-history window should be treated as an operational deadline, not a permanent file link. Vapi's exact retention varies by account plan. See [Vapi artifact retrieval](https://docs.vapi.ai/assistants/retrieve-call-artifacts) and [Vapi retention](https://docs.vapi.ai/observability/logs/overview).
+
+1. In the same Railway project, create a private Storage Bucket named `Recordings` in a European region. The new bucket's Credentials tab shows its S3 endpoint and URL style. This implementation uses the current virtual-hosted style. Keep the bucket private. [Railway Storage Buckets](https://docs.railway.com/storage-buckets)
+2. Add these **service variables** to the dashboard and archive service as references to that bucket:
+
+   | Variable | Value |
+   | --- | --- |
+   | `RECORDINGS_ENDPOINT` | `${{Recordings.ENDPOINT}}` |
+   | `RECORDINGS_BUCKET` | `${{Recordings.BUCKET}}` |
+   | `RECORDINGS_REGION` | `${{Recordings.REGION}}` |
+   | `RECORDINGS_ACCESS_KEY_ID` | `${{Recordings.ACCESS_KEY_ID}}` |
+   | `RECORDINGS_SECRET_ACCESS_KEY` | `${{Recordings.SECRET_ACCESS_KEY}}` |
+
+3. Add a second Railway service from this repository named `Recording archive`, with the same Dockerfile. Set its **Custom Start Command** to `npm run archive:recordings`, **Cron Schedule** to `0 * * * *` (hourly, UTC), and no domain, healthcheck, or pre-deploy command. Give it `DATABASE_URL=${{Postgres.DATABASE_URL}}`, `VAPI_ASSISTANT_IDS` matching the dashboard, the bucket references above, and a private `VAPI_API_KEY` from Vapi. The web service does not need the Vapi API key. The job processes up to 50 pending recordings per run, retries failed copies after six hours, and exits after closing its database connection. Calls still unarchived after 14 days are marked unavailable. [Railway Cron Jobs](https://docs.railway.com/cron-jobs)
+4. Ensure recording is enabled in the assistant's Recording & Artifacts settings and `end-of-call-report` reaches the webhook. After a test call, verify the archive job reports an archived count and the call detail page offers playback. If the job reports failures, check the assistant's recording setting, Vapi API key, bucket references, and the bucket URL style; no secret or recording URL is written to logs.
+
+The archive fetches audio through Vapi's authenticated recording endpoint and stores a private copy. Staff playback uses a five-minute signed bucket URL generated behind the existing session-protected call endpoint. No public bucket or raw Vapi recording URL is exposed in the dashboard. The archive does not automatically delete recordings; agree a retention period with the clinic before collecting them. Storage cost depends on duration and format: at 64 kbit/s, a ten-minute recording is about 4.8 MB, so 1,000 such recordings occupy about 4.8 GB. Railway currently lists bucket storage at $0.015 per GB-month; verify the live rate and account limits before rollout. [Railway Storage Buckets](https://docs.railway.com/storage-buckets)
 
 Every newly reported real call shows a persistent alert inside the open dashboard, even without browser notification permission; the alert says whether callback work is needed. System notifications use HTTPS and require the user to switch them on in Settings. The browser controls the permission prompt; Settings shows its current state and the button stops waiting after ten seconds if no decision arrives. The dashboard uses an authenticated Server-Sent Events connection and PostgreSQL `LISTEN/NOTIFY` to refresh when Vapi or staff updates data. It also refreshes when the tab reconnects or regains focus; there is no 30-second polling. Preset date ranges advance after midnight on the next refresh. Railway must allow the long-lived stream, and one PostgreSQL listener connection is held while dashboard tabs are open. The tab title counts new calls since the panel opened and clears on entering the calls list, without notification permission. No new Railway environment variables or service are needed.
 
@@ -55,6 +77,7 @@ This is direct DNS routing, not a redirect through Vercel. Same-origin APIs requ
 - Vapi credential and assistant allowlist are configured; test call transcript arrives.
 - A test webhook has arrived and the dashboard shows its receipt timestamp.
 - Notes survive repeated webhook delivery, and restarts preserve sessions and calls.
+- If archival is enabled, a test recording reaches the private bucket and plays only for a signed-in clinic user.
 - Daily backups are configured and restoration has been tested.
 - Agree how long call transcripts/notes should be retained before collecting real client data. V1 does not automatically delete records; deletion/retention automation is not implemented.
 

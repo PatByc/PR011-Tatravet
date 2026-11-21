@@ -14,7 +14,11 @@ The copy-link action shares the normal panel URL. Users still log in; no access 
 
 ## Accepted — limited call data and durable follow-up
 
-Store transcripts, available summaries and call metadata, excluding recordings and Vapi costs. Preserve staff notes/statuses during provider synchronization. Show descriptive call analytics without claiming bookings or business outcomes. Retention must be agreed before real call collection.
+Store transcripts, available summaries and call metadata, excluding Vapi costs. Preserve staff notes/statuses during provider synchronization. Show descriptive call analytics without claiming bookings or business outcomes. Retention must be agreed before real call collection.
+
+## Accepted later — timed speech turns and private recording archive
+
+Keep timed assistant/caller turns from the end-of-call report as compact JSON alongside the plain transcript. Archive recordings into a private Railway bucket; PostgreSQL stores only archive metadata and an object key. A short-lived signed URL is issued after clinic session authorization for playback. The archive has its own hourly Railway cron service and private Vapi API key; the dashboard's Vapi call integration remains webhook-only. A clinic retention decision is still needed before long-term recording collection.
 
 ## Accepted — one contact reason per call
 
@@ -38,7 +42,7 @@ Production startup must have PUBLIC_URL and a resolved PostgreSQL DATABASE_URL. 
 
 ## Accepted — webhook-only Vapi connection
 
-The owner declined scheduled synchronization. Connect the saved Vapi assistant directly with authenticated status-update/end-of-call-report webhooks. No Vapi API key or cron service is required. Connection indicators use webhook configuration and last receipt, without treating an idle phone line as a failed sync. Historical backfill is outside this selected setup.
+The owner declined scheduled call synchronization. Connect the saved Vapi assistant directly with authenticated status-update/end-of-call-report webhooks. The dashboard webhook needs no Vapi API key. A separate recording archive job uses one; it does not synchronize call metadata. Connection indicators use webhook configuration and last receipt, without treating an idle phone line as a failed sync. Historical call backfill is outside this selected setup.
 
 ## Accepted — simple Railway start override
 
