@@ -4,20 +4,30 @@ import { Upload } from "@aws-sdk/lib-storage";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { db } from "./db";
 import { assistantIds } from "./vapi";
+import { safeErrorDetails } from "./diagnostics";
 
 const maxRecordingBytes = 100 * 1024 * 1024;
 const retryDelayMs = 6 * 60 * 60 * 1000;
 const archiveWindowMs = 14 * 24 * 60 * 60 * 1000;
 
+function archiveError(code: string) {
+  return Object.assign(new Error(code), { code });
+}
+
+function requiredConfig(name: string) {
+  const value = process.env[name];
+  if (!value) throw archiveError(`${name}_MISSING`);
+  if (value.includes("${{")) throw archiveError(`${name}_UNRESOLVED_REFERENCE`);
+  return value;
+}
+
 function storageConfig() {
-  const endpoint = process.env.RECORDINGS_ENDPOINT;
-  const bucket = process.env.RECORDINGS_BUCKET;
-  const region = process.env.RECORDINGS_REGION;
-  const accessKeyId = process.env.RECORDINGS_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.RECORDINGS_SECRET_ACCESS_KEY;
-  if (!endpoint || !bucket || !region || !accessKeyId || !secretAccessKey)
-    throw new Error("RecordingStorageNotConfigured");
-  if (!endpoint.startsWith("https://")) throw new Error("InvalidRecordingStorageEndpoint");
+  const endpoint = requiredConfig("RECORDINGS_ENDPOINT");
+  const bucket = requiredConfig("RECORDINGS_BUCKET");
+  const region = requiredConfig("RECORDINGS_REGION");
+  const accessKeyId = requiredConfig("RECORDINGS_ACCESS_KEY_ID");
+  const secretAccessKey = requiredConfig("RECORDINGS_SECRET_ACCESS_KEY");
+  if (!endpoint.startsWith("https://")) throw archiveError("RECORDINGS_ENDPOINT_INVALID");
   return {
     bucket,
     client: new S3Client({ endpoint, region, credentials: { accessKeyId, secretAccessKey } }),
@@ -40,24 +50,26 @@ async function fetchRecording(callId: string, apiKey: string) {
     signal: AbortSignal.timeout(90_000),
     cache: "no-store",
   });
-  if (response.status === 404) throw new Error("RecordingUnavailable");
+  if (response.status === 404) throw archiveError("RECORDING_UNAVAILABLE");
   if (response.status !== 302 && response.status !== 303 && !response.ok)
-    throw new Error("RecordingFetchFailed");
+    throw archiveError("RECORDING_FETCH_FAILED");
   if (response.status === 302 || response.status === 303) {
     const location = response.headers.get("location");
-    if (!location || !location.startsWith("https://")) throw new Error("InvalidRecordingRedirect");
+    if (!location || !location.startsWith("https://")) throw archiveError("RECORDING_REDIRECT_INVALID");
     const signed = await fetch(location, { redirect: "error", signal: AbortSignal.timeout(90_000), cache: "no-store" });
-    if (!signed.ok) throw new Error("RecordingDownloadFailed");
+    if (!signed.ok) throw archiveError("RECORDING_DOWNLOAD_FAILED");
     return signed;
   }
   return response;
 }
 
 export async function archivePendingRecordings() {
-  const apiKey = process.env.VAPI_API_KEY;
-  if (!apiKey) throw new Error("VapiApiKeyNotConfigured");
+  requiredConfig("DATABASE_URL");
+  const apiKey = requiredConfig("VAPI_API_KEY");
   const allowedAssistants = assistantIds();
-  if (!allowedAssistants.length) throw new Error("VapiAssistantAllowlistNotConfigured");
+  if (!allowedAssistants.length) throw archiveError("VAPI_ASSISTANT_IDS_MISSING");
+  if (allowedAssistants.some((id) => id.includes("${{")))
+    throw archiveError("VAPI_ASSISTANT_IDS_UNRESOLVED_REFERENCE");
   const { client, bucket } = storageConfig();
   const eligibleBefore = new Date(Date.now() - retryDelayMs);
   const archiveCutoff = new Date(Date.now() - archiveWindowMs);
@@ -80,6 +92,7 @@ export async function archivePendingRecordings() {
   });
   let archived = 0;
   let failed = 0;
+  const failureCodes: Record<string, number> = {};
   try {
     for (const call of calls) {
       const claim = await db.call.updateMany({
@@ -94,16 +107,16 @@ export async function archivePendingRecordings() {
       try {
         const response = await fetchRecording(call.id, apiKey);
         const length = Number(response.headers.get("content-length"));
-        if (Number.isFinite(length) && length > maxRecordingBytes) throw new Error("RecordingTooLarge");
-        if (!response.body) throw new Error("EmptyRecordingBody");
+        if (Number.isFinite(length) && length > maxRecordingBytes) throw archiveError("RECORDING_TOO_LARGE");
+        if (!response.body) throw archiveError("RECORDING_BODY_EMPTY");
         const contentType = response.headers.get("content-type")?.split(";")[0] || "application/octet-stream";
         if (!contentType.startsWith("audio/") && contentType !== "application/octet-stream")
-          throw new Error("UnexpectedRecordingType");
+          throw archiveError("RECORDING_TYPE_UNEXPECTED");
         let bytes = 0;
         const limit = new Transform({
           transform(chunk: Buffer, _encoding, callback) {
             bytes += chunk.length;
-            callback(bytes <= maxRecordingBytes ? null : new Error("RecordingTooLarge"), chunk);
+            callback(bytes <= maxRecordingBytes ? null : archiveError("RECORDING_TOO_LARGE"), chunk);
           },
         });
         const key = `calls/${encodeURIComponent(call.id)}/mono`;
@@ -121,13 +134,15 @@ export async function archivePendingRecordings() {
           data: { recordingState: "ARCHIVED", recordingObjectKey: key, recordingMime: contentType, recordingBytes: bytes },
         });
         archived++;
-      } catch {
+      } catch (error) {
         await db.call.update({ where: { id: call.id }, data: { recordingState: "FAILED" } });
         failed++;
+        const code = safeErrorDetails(error).code || "RECORDING_COPY_FAILED";
+        failureCodes[code] = (failureCodes[code] || 0) + 1;
       }
     }
   } finally {
     client.destroy();
   }
-  return { inspected: calls.length, archived, failed };
+  return { inspected: calls.length, archived, failed, failureCodes };
 }
