@@ -10,7 +10,7 @@ export async function GET(_request: Request, context: Context) {
   try {
     await requireUser();
     const call = await db.call.findFirst({
-      where: { id: (await context.params).id, isDemo: process.env.DEMO_MODE === "true", assistantId: { in: assistantIds() } },
+      where: { id: (await context.params).id, isDemo: process.env.DEMO_MODE === "true", isVapiAgent: true, assistantId: { in: assistantIds() } },
       select: { recordingObjectKey: true },
     });
     if (!call?.recordingObjectKey) throw new HttpError(404, "Nagranie nie jest dostępne.");

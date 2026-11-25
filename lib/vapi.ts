@@ -1,5 +1,6 @@
 import { db } from "./db";
-import { callbackRequired, normalizeCall, mergeCall, storedTranscriptSegments, vapiCallSchema } from "./calls";
+import { callbackRequired, normalizeCall, vapiCallSchema } from "./calls";
+import { storeProviderCall } from "./call-ingestion";
 export const assistantIds = () =>
   (process.env.VAPI_ASSISTANT_IDS || "")
     .split(",")
@@ -8,26 +9,9 @@ export const assistantIds = () =>
 export async function ingestCall(raw: unknown, endOfCallReport = false) {
   const call = vapiCallSchema.parse(raw);
   if (!assistantIds().includes(call.assistantId)) return false;
-  const normalized = normalizeCall(call);
-  const needsCallback = callbackRequired(call);
-  await db.$transaction(async (tx) => {
-    // Serialize webhook and cron writes for the same call, including its first insert.
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${call.id}))::text`;
-    const existing = await tx.call.findUnique({ where: { id: call.id } });
-    const data = existing ? mergeCall({ ...existing, transcriptSegments: storedTranscriptSegments(existing.transcriptSegments) }, normalized) : normalized;
-    const { transcriptSegments, ...fields } = data;
-    const segmentField = transcriptSegments ? { transcriptSegments } : {};
-    const followUp = existing && (existing.followUpReviewed || existing.revision > 0)
-      ? existing.followUp
-      : endOfCallReport
-        ? needsCallback ? "CALLBACK" : "NONE"
-        : existing?.followUp || "NONE";
-    await tx.call.upsert({
-      where: { id: call.id },
-      create: { ...fields, ...segmentField, followUp, reportedAt: endOfCallReport ? new Date() : null, recordingState: endOfCallReport ? "PENDING" : "NONE" },
-      update: { ...fields, ...segmentField, followUp, reportedAt: existing?.reportedAt || (endOfCallReport ? new Date() : null),
-        ...(endOfCallReport && existing?.recordingState === "NONE" ? { recordingState: "PENDING" } : {}) },
-    });
+  await storeProviderCall("vapi", normalizeCall(call), {
+    finalReport: endOfCallReport,
+    needsCallback: callbackRequired(call),
   });
   return true;
 }

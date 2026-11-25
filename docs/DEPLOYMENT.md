@@ -16,10 +16,13 @@ Use a European Railway region for both app and database. Keep PostgreSQL private
 | `DATABASE_URL`        | Railway PostgreSQL internal connection string |
 | `PUBLIC_URL`          | Current public dashboard URL                  |
 | `DEMO_MODE`           | `false` for real calls                        |
+| `USE_LIVEKIT_AGENT`   | `false` or unset for Vapi; `true` selects the future LiveKit agent |
 | `VAPI_ASSISTANT_IDS`  | Saved Tatravet assistant ID(s)                |
 | `VAPI_WEBHOOK_SECRET` | Random bearer secret, at least 32 characters  |
 
 No VAPI_API_KEY is required for webhooks.
+
+`USE_LIVEKIT_AGENT` is a server-side selection flag. The current dashboard has no phone-routing control, so setting it to `true` does not by itself send calls to LiveKit. Until the separate LiveKit service and routing contract are connected, the dashboard displays its normal waiting-for-integration state. Existing Vapi calls and staff notes stay visible in either mode, and authenticated late Vapi reports continue to be saved. To return to Vapi during testing, set the flag to `false` and redeploy the dashboard, then restore the phone route to Vapi using the routing mechanism defined for the LiveKit service. Do not put this flag in `NEXT_PUBLIC_*` variables.
 
 ## Timed transcripts and recording archive
 

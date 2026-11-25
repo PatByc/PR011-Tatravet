@@ -3,6 +3,8 @@ const enabled = Boolean(process.env.TEST_DATABASE_URL);
 if (enabled) process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
 import { db } from "../lib/db";
 import { ingestCall, synchronize } from "../lib/vapi";
+import { storeProviderCall } from "../lib/call-ingestion";
+import { normalizeCall } from "../lib/calls";
 import { dashboard } from "../lib/dashboard";
 process.env.VAPI_ASSISTANT_IDS = "test-assistant";
 const source = {
@@ -46,6 +48,7 @@ describe.skipIf(!enabled)("PostgreSQL integration", () => {
     expect(result.transcript).toBe("Treść testowa");
     expect(result.note).toBe("Oddzwonić");
     expect(result.followUp).toBe("CALLBACK");
+    expect(result.isVapiAgent).toBe(true);
     expect(
       await ingestCall({
         ...source,
@@ -53,6 +56,29 @@ describe.skipIf(!enabled)("PostgreSQL integration", () => {
         assistantId: "foreign",
       }),
     ).toBe(false);
+  });
+  it("keeps provider calls with the same source ID separate and protects staff notes", async () => {
+    const normalized = normalizeCall(source);
+    await storeProviderCall("livekit", normalized, { finalReport: true, needsCallback: true });
+    const livekit = await db.call.findUniqueOrThrow({ where: { id: "livekit:integration-call" } });
+    expect(livekit.isVapiAgent).toBe(false);
+    expect(livekit.followUp).toBe("CALLBACK");
+    expect((await db.call.findUniqueOrThrow({ where: { id: source.id } })).isVapiAgent).toBe(true);
+    await db.call.update({ where: { id: livekit.id }, data: { note: "Staff note", followUp: "DONE", followUpReviewed: true } });
+    await storeProviderCall("livekit", normalized, { finalReport: true, needsCallback: true });
+    const updated = await db.call.findUniqueOrThrow({ where: { id: livekit.id } });
+    expect(updated.note).toBe("Staff note");
+    expect(updated.followUp).toBe("DONE");
+    expect(updated.recordingState).toBe("NONE");
+    process.env.USE_LIVEKIT_AGENT = "true";
+    try {
+      const history = await dashboard(new URLSearchParams({
+        from: "2026-11-09", to: "2026-11-09", q: "Treść testowa",
+      }));
+      expect(history.calls.map((call) => call.id)).toEqual(expect.arrayContaining([source.id, livekit.id]));
+    } finally {
+      delete process.env.USE_LIVEKIT_AGENT;
+    }
   });
   it("records the first final report once and preserves staff resolution", async () => {
     const id = "integration-notification";

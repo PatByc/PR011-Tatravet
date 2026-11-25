@@ -47,3 +47,7 @@ The owner declined scheduled call synchronization. Connect the saved Vapi assist
 ## Accepted — simple Railway start override
 
 Use `npm start` in Railway, preserving migrations as a separate pre-deploy step. Railway's Docker start override uses exec form; a bare `&&` does not chain commands. Runtime diagnostics remain available as a manual command and in the Docker default CMD.
+
+## Accepted — Vapi default with a separate LiveKit worker
+
+Keep Vapi as the dashboard's default when `USE_LIVEKIT_AGENT` is unset or false. Store `isVapiAgent` on calls so historical Vapi records and future LiveKit records can share one staff-facing history without losing provider provenance; keep staff notes across provider updates. Package the GPT-Live worker as a separate Railway service from `livekit-agent/` in this repository. The flag does not route telephone calls or provide LiveKit ingestion by itself. Retain the authenticated Vapi webhook, assistant allowlist, and Vapi-only recording archive while the LiveKit service is tested separately.

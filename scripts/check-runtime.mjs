@@ -7,6 +7,10 @@ if (missing.length) {
   console.error("runtime_configuration_missing:", missing.join(", "));
   process.exit(1);
 }
+if (process.env.USE_LIVEKIT_AGENT && !["true", "false"].includes(process.env.USE_LIVEKIT_AGENT)) {
+  console.error("runtime_configuration_invalid: USE_LIVEKIT_AGENT must be true or false");
+  process.exit(1);
+}
 let publicOrigin;
 try {
   const url = new URL(process.env.PUBLIC_URL);

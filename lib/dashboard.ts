@@ -1,4 +1,5 @@
 import { webhookConfigured } from "./integration";
+import { activeAgentProvider } from "./agent-provider";
 import { formatInTimeZone } from "date-fns-tz";
 import { db } from "./db";
 import { dayKey, dateRange, ZONE } from "./dates";
@@ -25,6 +26,7 @@ export async function dashboard(params: URLSearchParams) {
   const followUp = params.get("follow") || "",
     status = params.get("status") || "";
   const demo = process.env.DEMO_MODE === "true";
+  const activeProvider = activeAgentProvider();
   const base = { isDemo: demo, startedAt: range };
   const where: Prisma.CallWhereInput = {
     ...base,
@@ -77,7 +79,7 @@ export async function dashboard(params: URLSearchParams) {
       take: 8,
     }),
     db.call.count({ where: { isDemo: demo, followUp: "CALLBACK" } }),
-    db.syncState.findUnique({ where: { id: "vapi" } }),
+    db.syncState.findUnique({ where: { id: activeProvider } }),
   ]);
   const daily: Record<string, number> = {};
   for (
@@ -125,11 +127,11 @@ export async function dashboard(params: URLSearchParams) {
       key, name: label, value: reasons[key] || 0,
     })).filter((item) => item.value > 0),
     integration: {
-      configured: webhookConfigured({
+      configured: activeProvider === "vapi" && webhookConfigured({
         VAPI_WEBHOOK_SECRET: process.env.VAPI_WEBHOOK_SECRET,
         VAPI_ASSISTANT_IDS: process.env.VAPI_ASSISTANT_IDS,
       }),
-      lastWebhook: state?.lastWebhook || null,
+      lastWebhook: activeProvider === "vapi" ? state?.lastWebhook || null : null,
     },
     demo,
   };

@@ -25,6 +25,7 @@ model LoginLimit {
 }
 model Call {
   id String @id
+  isVapiAgent Boolean @default(true)
   assistantId String
   caller String?
   startedAt DateTime

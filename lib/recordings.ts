@@ -70,12 +70,13 @@ export async function archivePendingRecordings() {
   const eligibleBefore = new Date(Date.now() - retryDelayMs);
   const archiveCutoff = new Date(Date.now() - archiveWindowMs);
   await db.call.updateMany({
-    where: { isDemo: false, assistantId: { in: allowedAssistants }, recordingObjectKey: null, reportedAt: { lt: archiveCutoff }, recordingState: { in: ["PENDING", "FAILED", "PROCESSING"] } },
+    where: { isDemo: false, isVapiAgent: true, assistantId: { in: allowedAssistants }, recordingObjectKey: null, reportedAt: { lt: archiveCutoff }, recordingState: { in: ["PENDING", "FAILED", "PROCESSING"] } },
     data: { recordingState: "UNAVAILABLE" },
   });
   const calls = await db.call.findMany({
     where: {
       isDemo: false,
+      isVapiAgent: true,
       assistantId: { in: allowedAssistants },
       reportedAt: { gte: archiveCutoff },
       recordingObjectKey: null,

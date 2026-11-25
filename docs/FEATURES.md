@@ -21,12 +21,14 @@ The analytics tab groups each call by one structured contact reason supplied by 
 - PostgreSQL migration, isolated demo fixtures, Docker and Railway configuration.
 - Optional idempotent three-call showcase seed for the real-data view, dated 9 November 2026 and visibly labelled as samples.
 - Source-independent dependency layer and a production image excluding development tools and build cache.
+- Vapi-default provider configuration, call-provider provenance, and a separate locally validated LiveKit worker bundle. The bundle is not yet connected to dashboard ingestion or production telephony.
 
 ## Awaiting external setup
 
 - Private Railway recording bucket and scheduled archive service, with a live recording copy and playback check.
 - Database backups and any remaining production account or domain configuration.
 - Production data retention decision.
+- LiveKit worker registration, credential-backed Upstash verification, browser/room test, and a separate LiveKit-to-dashboard ingestion contract before any telephony cutover.
 
 ## Outside v1
 
