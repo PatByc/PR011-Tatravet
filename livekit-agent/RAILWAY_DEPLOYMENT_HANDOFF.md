@@ -2,9 +2,10 @@
 
 This directory is the deployable copy of the PR011 GPT-Live agent from
 `PatByc/voice-ai-agentic-builder` commit
-`1903d46f30f41a9377183e8c0e1ce5a67dd45d95`. The source prompt, settings,
-Upstash query behavior, and pinned dependencies are preserved. Only local file
-path resolution changed so this directory can run as its own Railway service.
+`1903d46f30f41a9377183e8c0e1ce5a67dd45d95`. This copy runs as its own
+Railway service. Its GPT-Live voice is now Marin, and its prompt instructs the
+agent to stay silent while client delegation is pending. The Upstash query
+behavior and pinned dependencies remain the same.
 
 ## Railway service
 
@@ -59,7 +60,7 @@ python test_upstash_faq.py
 
 The Upstash check must report results sourced from
 `KB_PR011_Tatravet_v2.md`. `settings.json` must select `gpt-live-client`,
-`openai/gpt-live-1`, Cedar (`cedar`), `delegation="client"`, and agent name
+`openai/gpt-live-1`, Marin (`marin`), `delegation="client"`, and agent name
 `pr011-tatravet`. The query uses namespace `pr011-faq` with `topK: 3`.
 
 ## Acceptance and routing boundary
@@ -69,7 +70,7 @@ Railway logs must show a persistent registered worker named
 error. A successful build alone is insufficient.
 
 Before any SIP change, dispatch a browser/Agent Console room to that name and
-check the greeting plays once, Cedar speech, one successful Upstash delegation
+check the greeting plays once, Marin speech, one successful Upstash delegation
 for the Saturday-hours question, `knowledge_status: ok`, logged Upstash
 duration, factual answers without a retrieval preamble, and farewell/room
 closure. Use these exact caller prompts:
@@ -86,6 +87,12 @@ Dziękuję, to wszystko. Do widzenia.
 Expected facts: Saturday 10:00–15:00; USG is available; blood-test preparation
 is 12 hours fasting with a small amount of water two hours before, subject to
 individual instructions. Do not invent a consultation price or calendar access.
+For the Saturday-hours question, the first spoken words after delegation must
+give the hours directly. Also ask `Jakich lekarzy weterynarii macie?`; the
+answer should begin `W Tatravet pracują…`. In LiveKit Cloud → Sessions → Agent
+insights → Transcript, confirm neither answer contains `sprawdzam`, `już
+sprawdzam`, `zaraz sprawdzę`, `już podpowiem`, `chwileczkę`, or another progress
+update before the factual answer.
 After the browser test, use only a staging SIP route for telephone testing.
 Production Telnyx/SIP routing and Vapi V2 remain unchanged until an explicit
 cutover request.
