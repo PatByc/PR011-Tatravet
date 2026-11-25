@@ -1,0 +1,30 @@
+{
+  "project_code": "PR011",
+  "agent_name": "pr011 - Tatravet LiveKit Benchmark",
+  "provider": "livekit",
+  "status": "draft",
+  "language": "pl",
+  "source_version": "V2.0",
+  "livekit": {
+    "agent_name": "pr011-tatravet",
+    "default_variant": "gpt-live-client",
+    "variants": {
+      "gpt-live-client": {
+        "pipeline": "gpt-live-client",
+        "model": "openai/gpt-live-1",
+        "voice": "cedar",
+        "delegation": "client",
+        "knowledge": "upstash-pr011-faq"
+      },
+      "cascade-rag": {
+        "pipeline": "cascade-rag",
+        "stt_model": "deepgram/nova-3",
+        "llm_model": "openai/gpt-5.6-luna",
+        "tts_model": "google/gemini-3.8-flash-lite-tts",
+        "voice": "Aoede",
+        "language": "pl",
+        "knowledge": "upstash-pr011-faq-pre-generation"
+      }
+    }
+  }
+}
