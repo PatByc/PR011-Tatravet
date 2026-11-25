@@ -102,3 +102,8 @@ active calls drain, restore the previous staging destination, and retain room
 IDs and Railway logs. Do not delete the Vapi assistant, LiveKit project, SIP
 trunk, or Upstash index. Session reports in `.tmp/livekit-session-reports/`
 are ephemeral on Railway.
+
+## Dashboard EOCR integration
+
+After the dashboard LiveKit webhook is deployed, add `LIVEKIT_EOCR_URL` and `LIVEKIT_EOCR_SECRET` to this worker and attach the existing private `Recordings` bucket credentials. The URL points to the dashboard's Railway private domain and `/api/webhooks/livekit`. The dashboard and recording archive cron need the same secret; the cron retries queued reports from the bucket. See the root `docs/DEPLOYMENT.md` for the variable matrix. This worker needs no dashboard database credentials. Browser rooms retain local diagnostics but do not enter production call history. The owner handles Telnyx/SIP routing manually.
+Set `LIVEKIT_EOCR_INCLUDE_BROWSER=true` only on an isolated test worker linked to an isolated dashboard database when checking browser-room ingestion. Keep it false or unset on the production worker.

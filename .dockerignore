@@ -8,6 +8,8 @@ node_modules
 .codex
 playwright-report
 test-results
+tmp
+livekit-agent/.tmp
 *.log
 *.tsbuildinfo
 generated

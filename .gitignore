@@ -35,6 +35,7 @@ Thumbs.db
 # Testing
 playwright-report/
 test-results/
+tmp/
 
 # Misc
 *.pem

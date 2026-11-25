@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
 from dotenv import load_dotenv
-from livekit import agents
+from livekit import agents, rtc
 from livekit.agents import (
     Agent,
     AgentServer,
@@ -24,6 +24,7 @@ from livekit.agents import (
 )
 
 from livekit_upstash_faq import query_pr011_faq
+from livekit_eocr import deliver_session_report, reporting_configured
 
 load_dotenv(ROOT / ".env")
 
@@ -173,27 +174,58 @@ class CascadedRAGAssistant(Agent):
 
 
 server = AgentServer()
+_sip_sessions: dict[str, dict[str, object]] = {}
 
 
 async def on_session_end(ctx: agents.JobContext) -> None:
-    report_dir = ROOT / ".tmp" / "livekit-session-reports"
-    report_dir.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    room_name = "".join(
-        character if character.isalnum() or character in "-_" else "_"
-        for character in ctx.room.name
-    )
-    path = report_dir / f"{timestamp}_{variant_name}_{room_name}.json"
-    payload = {
-        "benchmark_variant": variant_name,
-        "report": ctx.make_session_report().to_dict(),
-    }
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    logger.info("Saved PR011 session report: %s", path)
+    report = ctx.make_session_report()
+    try:
+        report_dir = ROOT / ".tmp" / "livekit-session-reports"
+        report_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+        room_name = "".join(
+            character if character.isalnum() or character in "-_" else "_"
+            for character in ctx.room.name
+        )
+        path = report_dir / f"{timestamp}_{variant_name}_{room_name}.json"
+        payload = {"benchmark_variant": variant_name, "report": report.to_dict()}
+        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        logger.info("Saved PR011 session report locally")
+    except Exception:
+        logger.warning("Could not save local PR011 session report")
+    sip = _sip_sessions.pop(ctx.job.id, {})
+    try:
+        await deliver_session_report(
+            report, caller=sip.get("caller"), is_sip=bool(sip.get("is_sip")),
+            agent_name=config["agent_name"],
+        )
+    except Exception:
+        logger.error("PR011 LiveKit end-of-call delivery failed")
 
 
 @server.rtc_session(agent_name=config["agent_name"], on_session_end=on_session_end)
 async def entrypoint(ctx: agents.JobContext):
+    sip = {"is_sip": False, "caller": None}
+    _sip_sessions[ctx.job.id] = sip
+
+    def capture_sip(participant) -> None:
+        if participant.kind != rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
+            return
+        sip["is_sip"] = True
+        candidate = participant.attributes.get("sip.phoneNumber")
+        if isinstance(candidate, str) and candidate.startswith("+") and candidate[1:].isdigit():
+            sip["caller"] = candidate[:100]
+
+    @ctx.room.on("participant_connected")
+    def on_participant_connected(participant) -> None:
+        capture_sip(participant)
+
+    @ctx.room.on("participant_attributes_changed")
+    def on_participant_attributes_changed(_changed, participant) -> None:
+        capture_sip(participant)
+
+    if not reporting_configured():
+        logger.warning("PR011 end-of-call integration is not configured")
     pipeline = variant["pipeline"]
     if pipeline == "gpt-live-client":
         session = AgentSession(
@@ -238,6 +270,8 @@ async def entrypoint(ctx: agents.JobContext):
         room_options=room_io.RoomOptions(delete_room_on_close=True),
     )
     await ctx.connect()
+    for participant in ctx.room.remote_participants.values():
+        capture_sip(participant)
     await session.generate_reply(instructions=f"Say exactly in Polish: {FIRST_MESSAGE}")
 
 

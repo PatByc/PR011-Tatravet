@@ -51,3 +51,7 @@ Use `npm start` in Railway, preserving migrations as a separate pre-deploy step.
 ## Accepted — Vapi default with a separate LiveKit worker
 
 Keep Vapi as the dashboard's default when `USE_LIVEKIT_AGENT` is unset or false. Store `isVapiAgent` on calls so historical Vapi records and future LiveKit records can share one staff-facing history without losing provider provenance; keep staff notes across provider updates. Package the GPT-Live worker as a separate Railway service from `livekit-agent/` in this repository. The flag does not route telephone calls or provide LiveKit ingestion by itself. Retain the authenticated Vapi webhook, assistant allowlist, and Vapi-only recording archive while the LiveKit service is tested separately.
+
+## Accepted — private LiveKit EOCR and agent audio archive
+
+Send SIP reports from the LiveKit worker to the dashboard over Railway private networking with a separate bearer secret and agent allowlist. Queue compact reports in the existing private bucket before delivery and replay them from the archive cron; do not give the worker database access. Run a separate post-call LiveKit Inference analysis for summary and contact reason. Copy the SDK's local audio file to the existing bucket at session end instead of adding Egress. Browser test rooms do not enter production history. The owner handles Telnyx/SIP routing manually.

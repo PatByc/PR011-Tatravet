@@ -70,6 +70,20 @@ describe.skipIf(!enabled)("PostgreSQL integration", () => {
     expect(updated.note).toBe("Staff note");
     expect(updated.followUp).toBe("DONE");
     expect(updated.recordingState).toBe("NONE");
+    await storeProviderCall("livekit", normalized, {
+      finalReport: true, needsCallback: true,
+      recording: { state: "ARCHIVED", key: "calls/livekit/integration-call/audio.oga", bytes: 1200 },
+    });
+    const archived = await db.call.findUniqueOrThrow({ where: { id: livekit.id } });
+    expect(archived.recordingState).toBe("ARCHIVED");
+    expect(archived.note).toBe("Staff note");
+    await storeProviderCall("livekit", normalized, {
+      finalReport: true, needsCallback: false,
+      recording: { state: "FAILED", key: null, bytes: null },
+    });
+    const replayed = await db.call.findUniqueOrThrow({ where: { id: livekit.id } });
+    expect(replayed.recordingState).toBe("ARCHIVED");
+    expect(replayed.reportedAt).toEqual(archived.reportedAt);
     process.env.USE_LIVEKIT_AGENT = "true";
     try {
       const history = await dashboard(new URLSearchParams({

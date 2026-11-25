@@ -22,7 +22,21 @@ Use a European Railway region for both app and database. Keep PostgreSQL private
 
 No VAPI_API_KEY is required for webhooks.
 
-`USE_LIVEKIT_AGENT` is a server-side selection flag. The current dashboard has no phone-routing control, so setting it to `true` does not by itself send calls to LiveKit. Until the separate LiveKit service and routing contract are connected, the dashboard displays its normal waiting-for-integration state. Existing Vapi calls and staff notes stay visible in either mode, and authenticated late Vapi reports continue to be saved. To return to Vapi during testing, set the flag to `false` and redeploy the dashboard, then restore the phone route to Vapi using the routing mechanism defined for the LiveKit service. Do not put this flag in `NEXT_PUBLIC_*` variables.
+`USE_LIVEKIT_AGENT` is a server-side integration-status flag. The dashboard has no phone-routing control, so setting it to `true` does not send calls to LiveKit. It shows the selected provider's webhook readiness and last receipt; both provider webhooks still save calls and keep existing notes visible. To return to Vapi, set it to `false` and redeploy the dashboard; the owner changes the phone route separately. Do not put this flag in `NEXT_PUBLIC_*` variables.
+
+### LiveKit reports and recordings
+
+Keep `USE_LIVEKIT_AGENT=false` until the owner manually changes Telnyx/SIP routing. Both provider webhooks save calls regardless of the flag; history and staff notes remain combined. Browser/Agent Console rooms are excluded from production ingestion. The worker sends SIP end-of-call reports over Railway private networking and does not need `DATABASE_URL`.
+
+| Service | Additional variables |
+| --- | --- |
+| Dashboard | `LIVEKIT_EOCR_SECRET` (random, at least 32 characters), `LIVEKIT_AGENT_NAMES=pr011-tatravet` |
+| LiveKit worker | `LIVEKIT_EOCR_URL=http://${{PR011-tatravet.RAILWAY_PRIVATE_DOMAIN}}:${{PR011-tatravet.PORT}}/api/webhooks/livekit`, matching `LIVEKIT_EOCR_SECRET`, and the `Recordings` bucket's `AWS_ENDPOINT_URL`, `AWS_S3_BUCKET_NAME`, `AWS_DEFAULT_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` |
+| Recording archive cron | The same `LIVEKIT_EOCR_URL` and `LIVEKIT_EOCR_SECRET`, plus existing bucket and Vapi variables |
+
+Use Railway's variable picker for references and check that the URL and port resolve. The worker queues each compact report in the private bucket under `livekit-eocr/` before POSTing it; the archive cron retries queued reports every 15 minutes and deletes them only after acceptance. The worker copies the SDK's local `.oga` audio to `calls/livekit/` in the same bucket. Playback uses the existing session-protected signed URL. Enable LiveKit Agent observability audio; the agent-file method cannot recover audio if the worker crashes before upload. Missing audio does not prevent the call or callback alert from being saved. The worker runs low-priority LiveKit Inference post-call analysis for summary and contact reason; failed analysis queues the call for staff review. No separate OpenAI key is needed.
+
+Deploy the dashboard ingestion path before setting the worker's EOCR variables. For browser-room ingestion checks, set `LIVEKIT_EOCR_INCLUDE_BROWSER=true` only on an isolated test worker with an isolated dashboard database and test bucket. Keep it false or unset in production. Then validate a staging SIP route. Keep production Telnyx routing on Vapi until the owner changes it manually.
 
 ## Timed transcripts and recording archive
 

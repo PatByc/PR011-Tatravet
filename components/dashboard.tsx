@@ -944,6 +944,7 @@ function CallTable({
                   </span>
                   {call.caller || "Numer zastrzeżony"}
                 </button>
+                <span className="provider-label">{call.isVapiAgent ? "Vapi" : "LiveKit"}</span>
               </td>
               <td>{dateTime(call.startedAt)}</td>
               <td className="numeric">{duration(call.duration)}</td>
@@ -1369,6 +1370,8 @@ function CallDetail({
               <h3>Podsumowanie rozmowy</h3>
               <p>{call.summary || "Podsumowanie nie jest jeszcze dostępne."}</p>
               <dl className="call-facts">
+                <dt>Asystent</dt>
+                <dd>{call.isVapiAgent ? "Vapi" : "LiveKit"}</dd>
                 <dt>Powód kontaktu</dt>
                 <dd>{contactReasons[call.contactReason as keyof typeof contactReasons] || contactReasons.unknown}</dd>
                 <dt>Status</dt>
@@ -1421,7 +1424,9 @@ function CallDetail({
               ) : call.recordingState === "PROCESSING" ? (
                 <p className="muted">Trwa archiwizacja nagrania. Sprawdź ponownie później.</p>
               ) : call.recordingState === "FAILED" ? (
-                <p className="muted">Nie udało się jeszcze zarchiwizować nagrania. System spróbuje ponownie.</p>
+                <p className="muted">{call.isVapiAgent
+                  ? "Nie udało się jeszcze zarchiwizować nagrania. System spróbuje ponownie."
+                  : "Nie udało się zarchiwizować nagrania tej rozmowy."}</p>
               ) : (
                 <p className="muted">Nagranie nie jest dostępne.</p>
               )}

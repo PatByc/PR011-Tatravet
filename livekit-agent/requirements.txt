@@ -1,3 +1,4 @@
 livekit-agents==1.8.8
 livekit-api==1.2.2
 python-dotenv==1.2.1
+boto3==1.35.99

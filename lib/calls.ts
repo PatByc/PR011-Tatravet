@@ -36,7 +36,9 @@ function extractedReason(call: VapiCall): ContactReason | null {
   return null;
 }
 export function callbackRequired(call: VapiCall): boolean {
-  const reason = extractedReason(call);
+  return callbackRequiredForReason(extractedReason(call));
+}
+export function callbackRequiredForReason(reason: string | null): boolean {
   return reason === "appointment" || reason === "appointment_change" || reason === "animal_health" || reason === "test_results";
 }
 const timedMessageSchema = z.object({
@@ -188,5 +190,8 @@ export function terminationLabel(reason: string | null) {
   if (/silence/.test(reason)) return "Rozłączenie po okresie ciszy";
   if (/max-duration/.test(reason)) return "Osiągnięto limit czasu rozmowy";
   if (reason === "hangup") return "Połączenie rozłączone";
+  if (reason === "participant_disconnected") return "Rozmówca zakończył połączenie";
+  if (reason === "task_completed") return "Asystent zakończył połączenie";
+  if (reason === "job_shutdown" || reason === "user_initiated") return "Połączenie zakończone";
   return "Inna przyczyna zakończenia";
 }

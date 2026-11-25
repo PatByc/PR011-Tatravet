@@ -44,6 +44,7 @@ export async function dashboard(params: URLSearchParams) {
   };
   const listSelect = {
     id: true,
+    isVapiAgent: true,
     caller: true,
     startedAt: true,
     duration: true,
@@ -127,11 +128,13 @@ export async function dashboard(params: URLSearchParams) {
       key, name: label, value: reasons[key] || 0,
     })).filter((item) => item.value > 0),
     integration: {
-      configured: activeProvider === "vapi" && webhookConfigured({
+      configured: activeProvider === "livekit"
+        ? Boolean(process.env.LIVEKIT_EOCR_SECRET && process.env.LIVEKIT_EOCR_SECRET.length >= 32 && process.env.LIVEKIT_AGENT_NAMES?.split(",").some((name) => name.trim()))
+        : webhookConfigured({
         VAPI_WEBHOOK_SECRET: process.env.VAPI_WEBHOOK_SECRET,
         VAPI_ASSISTANT_IDS: process.env.VAPI_ASSISTANT_IDS,
       }),
-      lastWebhook: activeProvider === "vapi" ? state?.lastWebhook || null : null,
+      lastWebhook: state?.lastWebhook || null,
     },
     demo,
   };
