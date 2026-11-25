@@ -2,8 +2,10 @@ import asyncio
 import json
 import logging
 import os
+import re
 import sys
 import time
+from collections.abc import AsyncIterable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -25,6 +27,7 @@ from livekit.agents import (
 
 from livekit_upstash_faq import query_pr011_faq
 from livekit_eocr import deliver_session_report, reporting_configured
+from temporal_context import current_poland_context, faq_query_with_poland_date
 
 load_dotenv(ROOT / ".env")
 
@@ -87,6 +90,34 @@ GPT_LIVE_ADDENDUM = _markdown_block(prompt, "GPT-Live Client Addendum")
 CASCADE_ADDENDUM = _markdown_block(prompt, "Cascaded RAG Addendum")
 FIRST_MESSAGE = _markdown_block(prompt, "First Message")
 
+
+def _session_instructions(addendum: str, caller_number: str | None = None) -> str:
+    marker = "# Context\n"
+    if SHARED_PROMPT.count(marker) != 1:
+        raise ValueError("Expected one Context heading in the shared prompt")
+    phone_context = caller_number or "unavailable in call metadata"
+    shared = SHARED_PROMPT.replace(
+        marker,
+        f"{marker}- {current_poland_context()}\n"
+        f"- Lead's phone number: {phone_context}\n",
+        1,
+    )
+    return f"{shared}\n\n{addendum}"
+
+
+def _sip_caller_number(participant) -> str | None:
+    if participant.kind != rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
+        return None
+    identity = participant.identity
+    candidates = (
+        participant.attributes.get("sip.phoneNumber"),
+        identity[4:] if identity.startswith("sip_") else None,
+    )
+    for value in candidates:
+        if isinstance(value, str) and re.fullmatch(r"\+[1-9]\d{7,14}", value):
+            return value
+    return None
+
 settings = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
 config = settings["livekit"]
 variant_name = os.environ.get("PR011_LIVEKIT_VARIANT", config["default_variant"])
@@ -100,18 +131,33 @@ except KeyError as exc:
 
 
 class GPTLiveClientAssistant(Agent):
-    def __init__(self) -> None:
-        super().__init__(instructions=f"{SHARED_PROMPT}\n\n{GPT_LIVE_ADDENDUM}")
+    def __init__(self, caller_number: str | None = None) -> None:
+        super().__init__(
+            instructions=_session_instructions(GPT_LIVE_ADDENDUM, caller_number)
+        )
+        self._pending_delegations: set[str] = set()
 
     async def on_enter(self) -> None:
         self.duplex_session.on("delegation_created", self._on_delegation)
 
     def _on_delegation(self, delegation) -> None:
+        self._pending_delegations.add(delegation.id)
+        # Stop already queued filler; the audio node drops new frames until the
+        # approved answer has been returned to GPT-Live.
+        if (audio_output := self.session.output.audio) is not None:
+            audio_output.clear_buffer()
         asyncio.create_task(self._resolve_delegation(delegation))
+
+    async def realtime_audio_output_node(
+        self, audio: AsyncIterable[rtc.AudioFrame], model_settings
+    ) -> AsyncIterable[rtc.AudioFrame]:
+        async for frame in audio:
+            if not self._pending_delegations:
+                yield frame
 
     async def _resolve_delegation(self, delegation) -> None:
         started = time.perf_counter()
-        query = delegation.pending_transcript.strip()
+        query = faq_query_with_poland_date(delegation.pending_transcript.strip())
         try:
             results = await query_pr011_faq(query)
             commentary = _format_knowledge(results)
@@ -130,21 +176,26 @@ class GPTLiveClientAssistant(Agent):
                 "knowledge_duration_ms": duration_ms,
             },
         )
-        self.duplex_session.append_thinking(
-            "Answer the caller's factual question directly from the approved facts. "
-            "Start with the answer. Add no preamble, acknowledgment, status update, "
-            "source label or explanation of how the information was obtained.",
-            delegation_id=delegation.id,
-        )
-        self.duplex_session.append_commentary(
-            commentary,
-            delegation_id=delegation.id,
-        )
+        try:
+            self.duplex_session.append_thinking(
+                "Answer the caller's factual question directly from the approved facts. "
+                "Start with the answer. Add no preamble, acknowledgment, status update, "
+                "source label or explanation of how the information was obtained.",
+                delegation_id=delegation.id,
+            )
+            self.duplex_session.append_commentary(
+                commentary,
+                delegation_id=delegation.id,
+            )
+        finally:
+            self._pending_delegations.discard(delegation.id)
 
 
 class CascadedRAGAssistant(Agent):
-    def __init__(self) -> None:
-        super().__init__(instructions=f"{SHARED_PROMPT}\n\n{CASCADE_ADDENDUM}")
+    def __init__(self, caller_number: str | None = None) -> None:
+        super().__init__(
+            instructions=_session_instructions(CASCADE_ADDENDUM, caller_number)
+        )
 
     async def on_user_turn_completed(
         self,
@@ -153,7 +204,9 @@ class CascadedRAGAssistant(Agent):
     ) -> None:
         started = time.perf_counter()
         try:
-            results = await query_pr011_faq(new_message.text_content)
+            results = await query_pr011_faq(
+                faq_query_with_poland_date(new_message.text_content)
+            )
             knowledge = _format_knowledge(results)
             status = "ok"
         except Exception:
@@ -188,7 +241,10 @@ async def on_session_end(ctx: agents.JobContext) -> None:
             for character in ctx.room.name
         )
         path = report_dir / f"{timestamp}_{variant_name}_{room_name}.json"
-        payload = {"benchmark_variant": variant_name, "report": report.to_dict()}
+        payload = {
+            "benchmark_variant": variant_name,
+            "report": report.to_dict(),
+        }
         path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         logger.info("Saved PR011 session report locally")
     except Exception:
@@ -212,9 +268,7 @@ async def entrypoint(ctx: agents.JobContext):
         if participant.kind != rtc.ParticipantKind.PARTICIPANT_KIND_SIP:
             return
         sip["is_sip"] = True
-        candidate = participant.attributes.get("sip.phoneNumber")
-        if isinstance(candidate, str) and candidate.startswith("+") and candidate[1:].isdigit():
-            sip["caller"] = candidate[:100]
+        sip["caller"] = _sip_caller_number(participant) or sip["caller"]
 
     @ctx.room.on("participant_connected")
     def on_participant_connected(participant) -> None:
@@ -226,6 +280,16 @@ async def entrypoint(ctx: agents.JobContext):
 
     if not reporting_configured():
         logger.warning("PR011 end-of-call integration is not configured")
+    await ctx.connect()
+    for participant in ctx.room.remote_participants.values():
+        capture_sip(participant)
+    if not ctx.room.remote_participants:
+        try:
+            capture_sip(await asyncio.wait_for(ctx.wait_for_participant(), timeout=2))
+        except TimeoutError:
+            pass
+
+    caller_number = sip["caller"] if isinstance(sip["caller"], str) else None
     pipeline = variant["pipeline"]
     if pipeline == "gpt-live-client":
         session = AgentSession(
@@ -235,7 +299,7 @@ async def entrypoint(ctx: agents.JobContext):
                 extra_kwargs={"delegation": "client"},
             )
         )
-        assistant: Agent = GPTLiveClientAssistant()
+        assistant: Agent = GPTLiveClientAssistant(caller_number)
     elif pipeline == "cascade-rag":
         session = AgentSession(
             stt=inference.STT(
@@ -249,7 +313,7 @@ async def entrypoint(ctx: agents.JobContext):
                 language=variant["language"],
             ),
         )
-        assistant = CascadedRAGAssistant()
+        assistant = CascadedRAGAssistant(caller_number)
     else:
         raise RuntimeError(f"Unsupported PR011 LiveKit pipeline: {pipeline}")
 
@@ -269,9 +333,6 @@ async def entrypoint(ctx: agents.JobContext):
         agent=assistant,
         room_options=room_io.RoomOptions(delete_room_on_close=True),
     )
-    await ctx.connect()
-    for participant in ctx.room.remote_participants.values():
-        capture_sip(participant)
     await session.generate_reply(instructions=f"Say exactly in Polish: {FIRST_MESSAGE}")
 
 

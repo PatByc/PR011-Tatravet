@@ -26,7 +26,8 @@ The service-specific config file is essential: the repository's root
 `/railway.json` belongs to the Next.js dashboard and would otherwise select its
 Dockerfile, migration command, `npm start`, and web health check. Check the
 **effective** deployment settings before releasing the new worker. The
-`/livekit-agent` root contains both `agent.py` and `livekit_upstash_faq.py`.
+`/livekit-agent` root contains `agent.py`, `temporal_context.py`, and
+`livekit_upstash_faq.py`.
 
 Set these variables on the **LiveKit worker service only**. Use actual values
 from the intended LiveKit Cloud project and PR011 Upstash index; never commit or
@@ -55,6 +56,7 @@ ignored `.env`:
 
 ```bash
 python -m py_compile agent.py
+python -m unittest test_temporal_context.py test_agent_runtime.py
 python test_upstash_faq.py
 ```
 
@@ -93,6 +95,13 @@ answer should begin `W Tatravet pracują…`. In LiveKit Cloud → Sessions → 
 insights → Transcript, confirm neither answer contains `sprawdzam`, `już
 sprawdzam`, `zaraz sprawdzę`, `już podpowiem`, `chwileczkę`, or another progress
 update before the factual answer.
+Also test `Jak pracujecie jutro?` and then `A pojutrze?` on a known weekday.
+Each answer must use the weekday resolved from Europe/Warsaw at the start of
+that call. The FAQ search receives that resolved weekday; the agent must not
+assume ordinary opening hours apply on public holidays.
+For SIP calls, the agent's Context contains a validated caller number from
+`sip.phoneNumber` or the `sip_` identity. Browser sessions and calls without a
+valid number say it is unavailable. The agent must not read the number aloud.
 After the browser test, use only a staging SIP route for telephone testing.
 Production Telnyx/SIP routing and Vapi V2 remain unchanged until an explicit
 cutover request.
