@@ -944,7 +944,6 @@ function CallTable({
                   </span>
                   {call.caller || "Numer zastrzeżony"}
                 </button>
-                <span className="provider-label">{call.isVapiAgent ? "Vapi" : "LiveKit"}</span>
               </td>
               <td>{dateTime(call.startedAt)}</td>
               <td className="numeric">{duration(call.duration)}</td>
@@ -1370,8 +1369,6 @@ function CallDetail({
               <h3>Podsumowanie rozmowy</h3>
               <p>{call.summary || "Podsumowanie nie jest jeszcze dostępne."}</p>
               <dl className="call-facts">
-                <dt>Asystent</dt>
-                <dd>{call.isVapiAgent ? "Vapi" : "LiveKit"}</dd>
                 <dt>Powód kontaktu</dt>
                 <dd>{contactReasons[call.contactReason as keyof typeof contactReasons] || contactReasons.unknown}</dd>
                 <dt>Status</dt>

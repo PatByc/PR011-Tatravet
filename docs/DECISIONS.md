@@ -55,3 +55,7 @@ Keep Vapi as the dashboard's default when `USE_LIVEKIT_AGENT` is unset or false.
 ## Accepted — private LiveKit EOCR and agent audio archive
 
 Send SIP reports from the LiveKit worker to the dashboard over Railway private networking with a separate bearer secret and agent allowlist. Queue compact reports in the existing private bucket before delivery and replay them from the archive cron; do not give the worker database access. Run a separate post-call LiveKit Inference analysis for summary and contact reason. Copy the SDK's local audio file to the existing bucket at session end instead of adding Egress. Browser test rooms do not enter production history. The owner handles Telnyx/SIP routing manually.
+
+## Accepted — provider-neutral staff interface
+
+Keep provider names as internal integration details. The call list and call details show the information staff need without naming the underlying voice service.

@@ -21,7 +21,7 @@ The analytics tab groups each call by one structured contact reason supplied by 
 - PostgreSQL migration, isolated demo fixtures, Docker and Railway configuration.
 - Optional idempotent three-call showcase seed for the real-data view, dated 9 November 2026 and visibly labelled as samples.
 - Source-independent dependency layer and a production image excluding development tools and build cache.
-- Vapi-default provider configuration, call-provider provenance, and a separate LiveKit worker bundle with authenticated EOCR delivery, private-bucket replay, post-call analysis and audio archival. Production telephony routing remains manual.
+- Vapi-default provider configuration, call-provider provenance, and a separate LiveKit worker bundle with authenticated EOCR delivery, private-bucket replay, post-call analysis and audio archival. Staff-facing call views omit provider names. Production telephony routing remains manual.
 - LiveKit voice sessions receive the current Poland-local date and validated SIP caller number; delegated FAQ lookups suppress queued filler audio while approved facts are fetched.
 
 ## Awaiting external setup
