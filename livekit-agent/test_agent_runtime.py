@@ -19,6 +19,14 @@ from livekit.agents import Agent  # noqa: E402
 
 
 class DelegationAudioTests(unittest.IsolatedAsyncioTestCase):
+    async def test_silence_instruction_is_set_before_delegation(self) -> None:
+        assistant = GPTLiveClientAssistant()
+        with patch.object(Agent, "duplex_session", new_callable=PropertyMock) as duplex:
+            await assistant.on_enter()
+            duplex.return_value.on.assert_called_once()
+            instruction = duplex.return_value.append_instructions.call_args.args[0]
+            self.assertIn("remain silent until the client result", instruction)
+
     def test_runtime_values_are_inside_context(self) -> None:
         assistant = GPTLiveClientAssistant("+48123456789")
         instructions = assistant.instructions

@@ -4,8 +4,10 @@ This directory is the deployable copy of the PR011 GPT-Live agent from
 `PatByc/voice-ai-agentic-builder` commit
 `1903d46f30f41a9377183e8c0e1ce5a67dd45d95`. This copy runs as its own
 Railway service. Its GPT-Live voice is now Marin, and its prompt instructs the
-agent to stay silent while client delegation is pending. The Upstash query
-behavior and pinned dependencies remain the same.
+agent to stay silent while client delegation is pending. Opening-hours questions
+now use a specific FAQ query and accept only the matching approved result; an
+unrelated result yields an unconfirmed-hours answer. The Upstash index and pinned
+dependencies remain the same.
 
 ## Railway service
 
@@ -99,6 +101,10 @@ Also test `Jak pracujecie jutro?` and then `A pojutrze?` on a known weekday.
 Each answer must use the weekday resolved from Europe/Warsaw at the start of
 that call. The FAQ search receives that resolved weekday; the agent must not
 assume ordinary opening hours apply on public holidays.
+On a Thursday, `Jak pracujecie jutro?` must resolve to Friday and, if the
+approved opening-hours FAQ is returned, state 08:00–20:00. A blood-test FAQ
+result must never be used as the answer to an opening-hours question; if the
+opening-hours FAQ is absent, the agent must say the hours are unconfirmed.
 For SIP calls, the agent's Context contains a validated caller number from
 `sip.phoneNumber` or the `sip_` identity. Browser sessions and calls without a
 valid number say it is unavailable. The agent must not read the number aloud.

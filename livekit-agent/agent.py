@@ -27,7 +27,12 @@ from livekit.agents import (
 
 from livekit_upstash_faq import query_pr011_faq
 from livekit_eocr import deliver_session_report, reporting_configured
-from temporal_context import current_poland_context, faq_query_with_poland_date
+from opening_hours import NO_CONFIRMED_HOURS, opening_hours_answer
+from temporal_context import (
+    current_poland_context,
+    faq_query_with_poland_date,
+    is_opening_hours_question,
+)
 
 load_dotenv(ROOT / ".env")
 
@@ -82,6 +87,13 @@ def _format_knowledge(results: list[dict]) -> str:
         )
 
     return "\n\n".join(facts)
+
+
+def _grounded_answer(question: str, results: list[dict]) -> tuple[str, str]:
+    if is_opening_hours_question(question):
+        answer = opening_hours_answer(question, results)
+        return answer, "missing" if answer == NO_CONFIRMED_HOURS else "ok"
+    return _format_knowledge(results), "ok" if results else "missing"
 
 
 prompt = PROMPT_FILE.read_text(encoding="utf-8")
@@ -139,6 +151,11 @@ class GPTLiveClientAssistant(Agent):
 
     async def on_enter(self) -> None:
         self.duplex_session.on("delegation_created", self._on_delegation)
+        self.duplex_session.append_instructions(
+            "After delegating a factual question, remain silent until the client result. "
+            "When it arrives, start with the supplied answer immediately. "
+            "Do not add an acknowledgment, filler, progress phrase, or unrelated fact."
+        )
 
     def _on_delegation(self, delegation) -> None:
         self._pending_delegations.add(delegation.id)
@@ -157,11 +174,11 @@ class GPTLiveClientAssistant(Agent):
 
     async def _resolve_delegation(self, delegation) -> None:
         started = time.perf_counter()
-        query = faq_query_with_poland_date(delegation.pending_transcript.strip())
+        question = delegation.pending_transcript.strip()
+        query = faq_query_with_poland_date(question)
         try:
             results = await query_pr011_faq(query)
-            commentary = _format_knowledge(results)
-            status = "ok"
+            commentary, status = _grounded_answer(question, results)
         except Exception:
             logger.exception("PR011 client-delegation lookup failed")
             commentary = _format_knowledge([])
@@ -177,10 +194,10 @@ class GPTLiveClientAssistant(Agent):
             },
         )
         try:
-            self.duplex_session.append_thinking(
-                "Answer the caller's factual question directly from the approved facts. "
-                "Start with the answer. Add no preamble, acknowledgment, status update, "
-                "source label or explanation of how the information was obtained.",
+            self.duplex_session.append_instructions(
+                "For this delegated question, speak only the approved answer supplied by "
+                "the client. Start with its first factual word. Do not add a preamble, "
+                "status update, or fact from another topic.",
                 delegation_id=delegation.id,
             )
             self.duplex_session.append_commentary(
@@ -204,11 +221,11 @@ class CascadedRAGAssistant(Agent):
     ) -> None:
         started = time.perf_counter()
         try:
+            question = new_message.text_content
             results = await query_pr011_faq(
-                faq_query_with_poland_date(new_message.text_content)
+                faq_query_with_poland_date(question)
             )
-            knowledge = _format_knowledge(results)
-            status = "ok"
+            knowledge, status = _grounded_answer(question, results)
         except Exception:
             logger.exception("PR011 cascaded RAG lookup failed")
             knowledge = _format_knowledge([])
