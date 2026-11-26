@@ -209,6 +209,24 @@ test("prevents lost note updates and expires sessions", async ({ request }) => {
   ]);
   expect((await request.get("/api/dashboard")).status()).toBe(401);
 });
+
+test("urgent callback status is red in call history and its own chart category", async ({ page }) => {
+  await login(page);
+  await page.getByRole("button", { name: "Połączenia", exact: false }).first().click();
+  await page.getByRole("textbox", { name: "Szukaj połączeń" }).fill("000 000 001");
+  await expect(page.locator("tbody tr")).toHaveCount(1);
+  await page.getByRole("button", { name: "Otwórz połączenie", exact: false }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Status sprawy").selectOption("CALLBACK_URGENT");
+  await dialog.getByRole("button", { name: "Zapisz zmiany" }).click();
+  await expect(dialog.locator(".badge.callback_urgent")).toContainText("Pilne");
+  await page.getByRole("button", { name: "Zamknij szczegóły" }).click();
+  await expect(page.locator("tbody tr .badge.callback_urgent")).toContainText("Do oddzwonienia - Pilne");
+  await page.getByRole("button", { name: "Analityka", exact: true }).click();
+  const urgent = page.locator(".reason-legend li").filter({ hasText: "Do oddzwonienia - Pilne" });
+  await expect(urgent).toBeVisible();
+  await expect(urgent.locator(".reason-swatch")).toHaveCSS("background-color", "rgb(201, 53, 53)");
+});
 test("password change revokes every session", async ({
   request,
   playwright,

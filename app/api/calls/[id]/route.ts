@@ -26,7 +26,7 @@ export async function PATCH(request: Request, context: Context) {
     const call = await find((await context.params).id);
     const parsed = z
       .object({
-        followUp: z.enum(["NONE", "CALLBACK", "DONE"]),
+        followUp: z.enum(["NONE", "CALLBACK", "CALLBACK_URGENT", "DONE"]),
         note: z.string().max(5000),
         revision: z.number().int().min(0),
       })

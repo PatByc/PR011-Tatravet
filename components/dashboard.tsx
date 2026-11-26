@@ -66,6 +66,7 @@ function transcriptTime(seconds: number) {
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }
 const reasonColors: Record<string, string> = {
+  urgent: "#c93535",
   appointment: "#4e9c2c",
   appointment_change: "#8dbd6a",
   animal_health: "#2f7564",
@@ -589,6 +590,7 @@ export default function Dashboard({
                               <span className="callback-info">
                                 <strong>
                                   {call.caller || "Numer zastrzeżony"}
+                                  {call.followUp === "CALLBACK_URGENT" && <span className="badge callback_urgent">Pilne</span>}
                                 </strong>
                                 <span>
                                   {call.summary ||
@@ -692,7 +694,7 @@ export default function Dashboard({
                       </select>
                     </div>
                     <>
-                      {follow === "CALLBACK" && (
+                      {(follow === "CALLBACK" || follow === "CALLBACK_URGENT") && (
                         <p
                           className="section-description"
                           style={{ marginBottom: 16 }}
@@ -745,11 +747,11 @@ export default function Dashboard({
                     </section>
                     <div className="analytics-grid">
                       <section className="panel reasons-panel">
-                        <h2>Powody kontaktu</h2>
-                        <p className="section-description">Główny temat każdej rozmowy w wybranym okresie</p>
+                        <h2>Kategorie spraw</h2>
+                        <p className="section-description">Pilne sprawy są liczone osobno; pozostałe według tematu rozmowy.</p>
                         {data.reasons.length ? (
                           <div className="reason-breakdown">
-                            <div className="reason-pie" role="img" aria-label={`Powody kontaktu: ${data.reasons.map((item) => `${item.name}: ${item.value} (${Math.round(item.value / data.metrics.count * 100)}%)`).join(", ")}`}>
+                            <div className="reason-pie" role="img" aria-label={`Kategorie spraw: ${data.reasons.map((item) => `${item.name}: ${item.value} (${Math.round(item.value / data.metrics.count * 100)}%)`).join(", ")}`}>
                               <ResponsiveContainer width="100%" height="100%">
                                 <PieChart>
                                   <Pie data={data.reasons} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={104} stroke="#fff" strokeWidth={2} isAnimationActive={false}>
@@ -770,7 +772,7 @@ export default function Dashboard({
                               ))}
                             </ul>
                           </div>
-                        ) : <Empty title="Brak powodów kontaktu" text="Wybierz okres z połączeniami." />}
+                        ) : <Empty title="Brak spraw" text="Wybierz okres z połączeniami." />}
                       </section>
                       <section className="panel">
                         <h2>Godziny największego ruchu</h2>
@@ -1378,7 +1380,7 @@ function CallDetail({
               </dl>
             </div>
             <div className="detail-section followup-form">
-              <h3>Dalsza obsługa</h3>
+              <h3>Dalsza obsługa {call.followUp === "CALLBACK_URGENT" && <span className="badge callback_urgent">Pilne</span>}</h3>
               <label>
                 Status sprawy
                 <select

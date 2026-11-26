@@ -23,13 +23,14 @@ The analytics tab groups each call by one structured contact reason supplied by 
 - Source-independent dependency layer and a production image excluding development tools and build cache.
 - Vapi-default provider configuration, call-provider provenance, and a separate LiveKit worker bundle with authenticated EOCR delivery, private-bucket replay, post-call analysis and audio archival. Staff-facing call views omit provider names. Production telephony routing remains manual.
 - LiveKit voice sessions receive the current Poland-local date, tomorrow, the day after tomorrow, and a validated SIP caller number. Calendar-only questions answer from those dates without FAQ retrieval. Delegated FAQ lookups suppress queued filler audio while approved facts are fetched. Opening-hours questions use the resolved Polish weekday and only the matching approved FAQ result; unrelated hits fall back to unconfirmed hours.
+- LiveKit refers described animal emergencies and time-sensitive after-hours concerns to a 24-hour veterinary clinic. Its post-call report can mark `Do oddzwonienia - Pilne`; the red status appears in the queue, call details, and chart as a separate category.
 
 ## Awaiting external setup
 
 - Private Railway recording bucket and scheduled archive service, with a live recording copy and playback check.
 - Database backups and any remaining production account or domain configuration.
 - Production data retention decision.
-- LiveKit EOCR credentials, isolated-database integration and browser checks, a staging SIP call with recording playback, and the owner's manual telephony cutover.
+- Isolated-database and browser checks for urgent calls, a staging SIP check of the urgent response and recording playback, and the owner's manual telephony cutover.
 
 ## Outside v1
 

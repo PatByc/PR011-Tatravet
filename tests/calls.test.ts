@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   callbackRequired,
+  dashboardCategory,
+  followUpForReport,
   normalizeCall,
   mergeCall,
   terminationCategory,
@@ -15,6 +17,12 @@ const source = {
   startedAt: "2026-11-09T08:00:10Z",
 };
 describe("Vapi ingestion rules", () => {
+  it("keeps urgent callback work separate and counts each call in one chart category", () => {
+    expect(followUpForReport(true, true)).toBe("CALLBACK_URGENT");
+    expect(followUpForReport(false, false)).toBe("NONE");
+    expect(dashboardCategory("CALLBACK_URGENT", "animal_health")).toBe("urgent");
+    expect(dashboardCategory("CALLBACK", "animal_health")).toBe("animal_health");
+  });
   it("does not invent durations without a known start", () => {
     expect(
       normalizeCall({

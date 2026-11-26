@@ -59,3 +59,7 @@ Send SIP reports from the LiveKit worker to the dashboard over Railway private n
 ## Accepted — provider-neutral staff interface
 
 Keep provider names as internal integration details. The call list and call details show the information staff need without naming the underlying voice service.
+
+## Accepted — urgent veterinary referral and callback priority
+
+For the LiveKit agent, described animal emergencies take priority over ordinary callback capture and FAQ answers. Direct callers to a 24-hour veterinary clinic without diagnosis, a named unverified clinic, or a promise of callback or transfer. Use approved opening hours to identify after-hours calls; routine calls after hours are not urgent by time alone. The LiveKit report carries an urgency flag. Store urgent calls as the distinct staff status `CALLBACK_URGENT`, preserve staff overrides, include them in the callback queue, and show them as one red category in the chart instead of double-counting their contact reason. Vapi's existing structured output and classification remain unchanged.

@@ -61,6 +61,16 @@ class DelegationAudioTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Current date and time in Poland: first", first)
         self.assertIn("Current date and time in Poland: second", second)
 
+    def test_urgent_veterinary_instructions_and_confirmed_closed_status(self) -> None:
+        instructions = GPTLiveClientAssistant(clinic_status="closed").instructions
+        urgent_section = instructions.split("## Safety priority: urgent veterinary situations", 1)[1].split("## 1. Greeting", 1)[0]
+        self.assertIn("Tatravet status at call start, based on approved opening hours: closed", instructions)
+        self.assertIn("najbliższą całodobową lecznicą weterynaryjną", urgent_section)
+        self.assertIn("Never claim that you will transfer the call, alert a doctor", urgent_section)
+        self.assertIn("Dziękujemy za kontakt z Tatravet. Do widzenia.", urgent_section)
+        self.assertNotIn("Recepcja oddzwoni", urgent_section)
+        self.assertNotIn("sto dwanaście", instructions)
+
     def test_sip_number_uses_validated_attribute_or_identity(self) -> None:
         sip_kind = rtc.ParticipantKind.PARTICIPANT_KIND_SIP
         self.assertEqual(

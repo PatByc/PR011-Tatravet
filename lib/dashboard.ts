@@ -3,7 +3,7 @@ import { activeAgentProvider } from "./agent-provider";
 import { formatInTimeZone } from "date-fns-tz";
 import { db } from "./db";
 import { dayKey, dateRange, ZONE } from "./dates";
-import { contactReasons, terminationCategory } from "./calls";
+import { contactReasons, dashboardCategory, followLabels, terminationCategory } from "./calls";
 import { HttpError } from "./http";
 import type { Prisma } from "../generated/prisma/client";
 export async function dashboard(params: URLSearchParams) {
@@ -30,7 +30,7 @@ export async function dashboard(params: URLSearchParams) {
   const base = { isDemo: demo, startedAt: range };
   const where: Prisma.CallWhereInput = {
     ...base,
-    ...(followUp === "CALLBACK" ? { startedAt: undefined } : {}),
+    ...(["CALLBACK", "CALLBACK_URGENT"].includes(followUp) ? { startedAt: undefined } : {}),
     ...(search
       ? {
           OR: [
@@ -39,7 +39,7 @@ export async function dashboard(params: URLSearchParams) {
           ],
         }
       : {}),
-    ...(followUp ? { followUp } : {}),
+    ...(followUp ? { followUp: followUp === "CALLBACK" ? { in: ["CALLBACK", "CALLBACK_URGENT"] } : followUp } : {}),
     ...(status ? { status } : {}),
   };
   const listSelect = {
@@ -71,15 +71,16 @@ export async function dashboard(params: URLSearchParams) {
         status: true,
         endedReason: true,
         contactReason: true,
+        followUp: true,
       },
     }),
     db.call.findMany({
-      where: { isDemo: demo, followUp: "CALLBACK" },
+      where: { isDemo: demo, followUp: { in: ["CALLBACK", "CALLBACK_URGENT"] } },
       select: listSelect,
-      orderBy: { startedAt: "asc" },
+      orderBy: [{ followUp: "desc" }, { startedAt: "asc" }],
       take: 8,
     }),
-    db.call.count({ where: { isDemo: demo, followUp: "CALLBACK" } }),
+    db.call.count({ where: { isDemo: demo, followUp: { in: ["CALLBACK", "CALLBACK_URGENT"] } } }),
     db.syncState.findUnique({ where: { id: activeProvider } }),
   ]);
   const daily: Record<string, number> = {};
@@ -102,8 +103,7 @@ export async function dashboard(params: URLSearchParams) {
     hours[Number(formatInTimeZone(call.startedAt, ZONE, "H"))].calls++;
     const category = terminationCategory(call.endedReason, call.status);
     endings[category] = (endings[category] || 0) + 1;
-    const reason = call.contactReason && Object.hasOwn(contactReasons, call.contactReason)
-      ? call.contactReason : "unknown";
+    const reason = dashboardCategory(call.followUp, call.contactReason);
     reasons[reason] = (reasons[reason] || 0) + 1;
     if (call.duration !== null) {
       seconds += call.duration;
@@ -124,7 +124,7 @@ export async function dashboard(params: URLSearchParams) {
     daily: Object.entries(daily).map(([date, calls]) => ({ date, calls })),
     hours,
     endings: Object.entries(endings).map(([name, value]) => ({ name, value })),
-    reasons: Object.entries(contactReasons).map(([key, label]) => ({
+    reasons: [["urgent", followLabels.CALLBACK_URGENT], ...Object.entries(contactReasons)].map(([key, label]) => ({
       key, name: label, value: reasons[key] || 0,
     })).filter((item) => item.value > 0),
     integration: {

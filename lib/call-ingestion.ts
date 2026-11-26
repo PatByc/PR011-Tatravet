@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { mergeCall, storedTranscriptSegments, type NormalizedCall } from "./calls";
+import { followUpForReport, mergeCall, storedTranscriptSegments, type NormalizedCall } from "./calls";
 import { storedCallId, type AgentProvider } from "./agent-provider";
 
 /** Called only after a provider adapter has authenticated and allowlisted its source. */
@@ -9,6 +9,7 @@ export async function storeProviderCall(
   options: {
     finalReport: boolean;
     needsCallback: boolean;
+    urgent?: boolean;
     recording?: { state: "ARCHIVED" | "FAILED" | "NONE"; key: string | null; bytes: number | null };
   },
 ) {
@@ -27,7 +28,7 @@ export async function storeProviderCall(
     const followUp = existing && (existing.followUpReviewed || existing.revision > 0)
       ? existing.followUp
       : options.finalReport
-        ? options.needsCallback ? "CALLBACK" : "NONE"
+        ? followUpForReport(options.needsCallback, options.urgent)
         : existing?.followUp || "NONE";
     const recording = provider === "livekit" && options.recording
       ? options.recording.state === "ARCHIVED"

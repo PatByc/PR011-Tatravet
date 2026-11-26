@@ -1,9 +1,9 @@
 """Extract only the approved opening-hours FAQ for hours questions."""
 
 import re
-from datetime import date, timedelta
+from datetime import date, time, timedelta
 
-from temporal_context import resolved_reference_date
+from temporal_context import poland_now, resolved_reference_date
 
 SOURCE = "KB_PR011_Tatravet_v2.md"
 NO_CONFIRMED_HOURS = (
@@ -118,3 +118,19 @@ def opening_hours_answer(question: str, results: list[dict], now=None) -> str:
     else:
         when = DAY_PHRASES[target.weekday()].capitalize()
     return f"{when} Tatravet jest otwarte od {match.group(1)} do {match.group(2)}."
+
+
+def current_clinic_status(results: list[dict], now=None) -> str:
+    """Determine open/closed only when today's approved hours are known."""
+    local = poland_now(now)
+    answer = opening_hours_answer("Jakie są godziny otwarcia Tatravet dziś?", results, local)
+    if answer == NO_CONFIRMED_HOURS:
+        return "unknown"
+    match = re.search(r"\bod\s+(\d{1,2}:\d{2})\s+do\s+(\d{1,2}:\d{2})\b", answer)
+    if not match:
+        return "unknown"
+    try:
+        opens, closes = time.fromisoformat(match.group(1)), time.fromisoformat(match.group(2))
+    except ValueError:
+        return "unknown"
+    return "open" if opens <= local.time() < closes else "closed"

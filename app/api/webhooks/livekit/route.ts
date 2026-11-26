@@ -24,6 +24,7 @@ export async function POST(request: Request) {
     await storeProviderCall("livekit", normalizeLivekitReport(report), {
       finalReport: true,
       needsCallback: !report.analysisOk || callbackRequiredForReason(report.contactReason),
+      urgent: report.urgent,
       recording: report.recording,
     });
     await db.syncState.upsert({

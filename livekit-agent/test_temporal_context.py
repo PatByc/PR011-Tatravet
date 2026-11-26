@@ -1,7 +1,7 @@
 import unittest
 from datetime import datetime, timezone
 
-from opening_hours import NO_CONFIRMED_HOURS, opening_hours_answer
+from opening_hours import NO_CONFIRMED_HOURS, current_clinic_status, opening_hours_answer
 from temporal_context import (
     calendar_only_answer,
     current_poland_context,
@@ -26,6 +26,15 @@ UNRELATED_RESULT = {
 
 
 class TemporalContextTests(unittest.TestCase):
+    def test_current_clinic_status_requires_approved_hours(self) -> None:
+        morning = datetime(2026, 11, 26, 9, 0, tzinfo=timezone.utc)
+        evening = datetime(2026, 11, 26, 20, 0, tzinfo=timezone.utc)
+        holiday = datetime(2026, 12, 25, 9, 0, tzinfo=timezone.utc)
+        self.assertEqual(current_clinic_status([HOURS_RESULT], morning), "open")
+        self.assertEqual(current_clinic_status([HOURS_RESULT], evening), "closed")
+        self.assertEqual(current_clinic_status([HOURS_RESULT], holiday), "unknown")
+        self.assertEqual(current_clinic_status([UNRELATED_RESULT], evening), "unknown")
+
     def test_session_context_uses_warsaw_time(self) -> None:
         instant = datetime(2026, 3, 28, 23, 30, tzinfo=timezone.utc)
         self.assertIn("Sunday, 2026-03-29, 00:30", current_poland_context(instant))

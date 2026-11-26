@@ -41,6 +41,13 @@ export function callbackRequired(call: VapiCall): boolean {
 export function callbackRequiredForReason(reason: string | null): boolean {
   return reason === "appointment" || reason === "appointment_change" || reason === "animal_health" || reason === "test_results";
 }
+export function followUpForReport(needsCallback: boolean, urgent = false) {
+  return urgent ? "CALLBACK_URGENT" : needsCallback ? "CALLBACK" : "NONE";
+}
+export function dashboardCategory(followUp: string, reason: string | null) {
+  if (followUp === "CALLBACK_URGENT") return "urgent";
+  return reason && Object.hasOwn(contactReasons, reason) ? reason : "unknown";
+}
 const timedMessageSchema = z.object({
   role: z.string(),
   message: z.string().optional(),
@@ -175,6 +182,7 @@ export const statusLabels: Record<string, string> = {
 export const followLabels: Record<string, string> = {
   NONE: "Bez działania",
   CALLBACK: "Do oddzwonienia",
+  CALLBACK_URGENT: "Do oddzwonienia - Pilne",
   DONE: "Załatwione",
 };
 

@@ -63,6 +63,12 @@ describe.skipIf(!enabled)("PostgreSQL integration", () => {
     const livekit = await db.call.findUniqueOrThrow({ where: { id: "livekit:integration-call" } });
     expect(livekit.isVapiAgent).toBe(false);
     expect(livekit.followUp).toBe("CALLBACK");
+    await storeProviderCall("livekit", normalized, { finalReport: true, needsCallback: true, urgent: true });
+    expect((await db.call.findUniqueOrThrow({ where: { id: livekit.id } })).followUp).toBe("CALLBACK_URGENT");
+    const urgentView = await dashboard(new URLSearchParams({ from: "2026-11-09", to: "2026-11-09" }));
+    expect(urgentView.queue.some((call) => call.id === livekit.id)).toBe(true);
+    expect(urgentView.reasons.find((item) => item.key === "urgent")?.value).toBe(1);
+    expect(urgentView.reasons.reduce((sum, item) => sum + item.value, 0)).toBe(urgentView.metrics.count);
     expect((await db.call.findUniqueOrThrow({ where: { id: source.id } })).isVapiAgent).toBe(true);
     await db.call.update({ where: { id: livekit.id }, data: { note: "Staff note", followUp: "DONE", followUpReviewed: true } });
     await storeProviderCall("livekit", normalized, { finalReport: true, needsCallback: true });

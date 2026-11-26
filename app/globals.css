@@ -648,6 +648,19 @@ tbody tr:hover {
   background: #fff4da;
   color: #8d681b;
 }
+.badge.callback_urgent {
+  background: #ffe9e6;
+  color: #a82222;
+  font-weight: 700;
+}
+.callback-info .badge.callback_urgent {
+  margin-left: 8px;
+  vertical-align: middle;
+}
+.followup-form h3 .badge.callback_urgent {
+  margin-left: 8px;
+  vertical-align: middle;
+}
 .badge.done {
   background: #ecf6e5;
   color: #467629;

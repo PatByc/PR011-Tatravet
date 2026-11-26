@@ -25,11 +25,14 @@ describe("LiveKit EOCR normalization", () => {
     expect(call.transcript).toContain("Rozmówca: Proszę o wizytę.");
     expect(callbackRequiredForReason(call.contactReason)).toBe(true);
     expect(livekitRecordingKey(parsed.roomId)).toBe(parsed.recording.key);
+    expect(parsed.urgent).toBe(false);
+    expect(livekitReportSchema.parse({ ...report, urgent: true }).urgent).toBe(true);
   });
 
   it("rejects invalid dates, reasons and identifiers", () => {
     expect(livekitReportSchema.safeParse({ ...report, roomId: "bad" }).success).toBe(false);
     expect(livekitReportSchema.safeParse({ ...report, contactReason: "invented" }).success).toBe(false);
+    expect(livekitReportSchema.safeParse({ ...report, urgent: "yes" }).success).toBe(false);
     const reversed = livekitReportSchema.parse({ ...report, endedAt: "2026-11-25T11:59:00Z" });
     expect(() => normalizeLivekitReport(reversed)).toThrow("LIVEKIT_REPORT_TIME_INVALID");
   });

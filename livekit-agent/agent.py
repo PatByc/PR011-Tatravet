@@ -27,7 +27,7 @@ from livekit.agents import (
 
 from livekit_upstash_faq import query_pr011_faq
 from livekit_eocr import deliver_session_report, reporting_configured
-from opening_hours import NO_CONFIRMED_HOURS, opening_hours_answer
+from opening_hours import NO_CONFIRMED_HOURS, current_clinic_status, opening_hours_answer
 from temporal_context import (
     calendar_only_answer,
     faq_query_with_poland_date,
@@ -104,7 +104,7 @@ CASCADE_ADDENDUM = _markdown_block(prompt, "Cascaded RAG Addendum")
 FIRST_MESSAGE = _markdown_block(prompt, "First Message")
 
 
-def _session_instructions(addendum: str, caller_number: str | None = None) -> str:
+def _session_instructions(addendum: str, caller_number: str | None = None, clinic_status: str = "unknown") -> str:
     marker = "# Context\n"
     if SHARED_PROMPT.count(marker) != 1:
         raise ValueError("Expected one Context heading in the shared prompt")
@@ -112,6 +112,7 @@ def _session_instructions(addendum: str, caller_number: str | None = None) -> st
     shared = SHARED_PROMPT.replace(
         marker,
         f"{marker}{runtime_calendar_context()}\n"
+        f"- Tatravet status at call start, based on approved opening hours: {clinic_status}.\n"
         f"- Lead's phone number: {phone_context}\n",
         1,
     )
@@ -144,9 +145,9 @@ except KeyError as exc:
 
 
 class GPTLiveClientAssistant(Agent):
-    def __init__(self, caller_number: str | None = None) -> None:
+    def __init__(self, caller_number: str | None = None, clinic_status: str = "unknown") -> None:
         super().__init__(
-            instructions=_session_instructions(GPT_LIVE_ADDENDUM, caller_number)
+            instructions=_session_instructions(GPT_LIVE_ADDENDUM, caller_number, clinic_status)
         )
         self._pending_delegations: set[str] = set()
 
@@ -316,6 +317,15 @@ async def entrypoint(ctx: agents.JobContext):
     caller_number = sip["caller"] if isinstance(sip["caller"], str) else None
     pipeline = variant["pipeline"]
     if pipeline == "gpt-live-client":
+        clinic_status = "unknown"
+        try:
+            hours = await asyncio.wait_for(
+                query_pr011_faq("W jakich godzinach Tatravet jest otwarte w tygodniu, weekendy i święta?"),
+                timeout=2,
+            )
+            clinic_status = current_clinic_status(hours)
+        except Exception:
+            logger.warning("Approved opening hours unavailable at session start")
         session = AgentSession(
             llm=inference.DuplexModel(
                 model=variant["model"],
@@ -323,7 +333,7 @@ async def entrypoint(ctx: agents.JobContext):
                 extra_kwargs={"delegation": "client"},
             )
         )
-        assistant: Agent = GPTLiveClientAssistant(caller_number)
+        assistant: Agent = GPTLiveClientAssistant(caller_number, clinic_status)
     elif pipeline == "cascade-rag":
         session = AgentSession(
             stt=inference.STT(

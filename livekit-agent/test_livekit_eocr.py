@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-from livekit_eocr import _turns, deliver_session_report
+from livekit_eocr import _analyse, _gave_urgent_referral, _turns, deliver_session_report
 
 
 def report():
@@ -23,6 +23,33 @@ def report():
 
 
 class LivekitEocrTest(unittest.IsolatedAsyncioTestCase):
+    def test_emergency_referral_is_a_fallback_urgency_signal(self):
+        self.assertTrue(_gave_urgent_referral([{
+            "role": "assistant",
+            "text": "Nie mogę ocenić stanu zwierzęcia. Proszę skontaktować się z całodobową lecznicą weterynaryjną.",
+        }]))
+        self.assertFalse(_gave_urgent_referral([{
+            "role": "assistant", "text": "Godziny otwarcia są podane na stronie kliniki.",
+        }]))
+
+    async def test_post_call_analysis_reads_urgency_without_losing_other_fields(self):
+        response = SimpleNamespace(text=json.dumps({
+            "summary": "Nagły wypadek zwierzęcia.",
+            "contactReason": "animal_health",
+            "callbackNumber": None,
+            "urgent": True,
+        }))
+        with patch("livekit_eocr.inference.LLM") as model:
+            model.return_value.chat.return_value.collect = AsyncMock(return_value=response)
+            result = await _analyse([{"role": "user", "text": "Wypadek", "secondsFromStart": 1}])
+        self.assertEqual(result, ("Nagły wypadek zwierzęcia.", "animal_health", None, True, True))
+
+        response.text = json.dumps({"summary": "Informacja o godzinach.", "contactReason": "clinic_info"})
+        with patch("livekit_eocr.inference.LLM") as model:
+            model.return_value.chat.return_value.collect = AsyncMock(return_value=response)
+            result = await _analyse([{"role": "user", "text": "Godziny?", "secondsFromStart": 1}])
+        self.assertEqual(result, ("Informacja o godzinach.", "clinic_info", None, False, True))
+
     def test_extracts_timed_speech_without_agent_configuration(self):
         self.assertEqual(_turns(report()), [
             {"role": "user", "text": "Synthetic question", "secondsFromStart": 4.5},
@@ -54,7 +81,7 @@ class LivekitEocrTest(unittest.IsolatedAsyncioTestCase):
             calls.append(("delivered", json.loads(body)))
             return True
         with patch.dict(os.environ, required), \
-             patch("livekit_eocr._analyse", new=AsyncMock(return_value=("Synthetic summary", "appointment", None, True))), \
+             patch("livekit_eocr._analyse", new=AsyncMock(return_value=("Synthetic summary", "appointment", None, True, True))), \
              patch("livekit_eocr._upload_audio", return_value=("calls/livekit/RM_Synthetic/audio.oga", 1200)), \
              patch("livekit_eocr._put_outbox", side_effect=queue), \
              patch("livekit_eocr._delete_outbox", side_effect=remove), \
@@ -62,6 +89,7 @@ class LivekitEocrTest(unittest.IsolatedAsyncioTestCase):
             await deliver_session_report(report(), caller="+48123456789", is_sip=True, agent_name="pr011-tatravet")
         self.assertEqual([entry[0] for entry in calls], ["queued", "delivered", "removed"])
         self.assertEqual(calls[0][2]["caller"], "+48123456789")
+        self.assertIs(calls[0][2]["urgent"], True)
         self.assertEqual(calls[0][2]["recording"]["state"], "ARCHIVED")
 
 

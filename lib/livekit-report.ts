@@ -22,6 +22,7 @@ export const livekitReportSchema = z.object({
   summary: z.string().max(2000).nullable(),
   contactReason: reason.nullable(),
   analysisOk: z.boolean(),
+  urgent: z.boolean().optional().default(false),
   recording: z.object({
     state: z.enum(["ARCHIVED", "FAILED", "NONE"]),
     key: z.string().max(300).nullable(),

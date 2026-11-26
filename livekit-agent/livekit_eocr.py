@@ -66,18 +66,34 @@ def _turns(report) -> list[dict]:
     return result[:500]
 
 
-async def _analyse(turns: list[dict]) -> tuple[str | None, str | None, str | None, bool]:
+def _gave_urgent_referral(turns: list[dict]) -> bool:
+    for turn in turns:
+        if turn["role"] != "assistant":
+            continue
+        text = turn["text"].casefold()
+        if "nie mogę ocenić stanu zwierzęcia" in text and "całodobową lecznicą weterynaryjną" in text:
+            return True
+    return False
+
+
+async def _analyse(turns: list[dict]) -> tuple[str | None, str | None, str | None, bool, bool]:
     if not turns:
-        return None, None, None, False
+        return None, None, None, False, False
     transcript = "\n".join(f'{turn["role"]}: {turn["text"]}' for turn in turns)
     context = ChatContext()
     context.add_message(role="system", content=(
         "Analyse a Polish veterinary clinic call. Return only a JSON object with keys "
-        "summary, contactReason, callbackNumber. summary: a brief factual Polish summary, "
+        "summary, contactReason, callbackNumber, urgent. summary: a brief factual Polish summary, "
         "at most 500 characters. contactReason: exactly one of appointment, "
         "appointment_change, animal_health, services_prices, test_results, clinic_info, "
         "other, unknown. Use unknown if unclear. callbackNumber: a phone number only if "
-        "the caller explicitly gave it for a callback; otherwise null. Do not infer facts."
+        "the caller explicitly gave it for a callback; otherwise null. urgent: true only "
+        "when the caller describes a current accident, severe bleeding, breathing difficulty, "
+        "collapse, seizures, suspected poisoning, or another animal-health concern "
+        "that the caller says cannot wait for the clinic to reopen. Past resolved or hypothetical "
+        "events and routine calls outside "
+        "opening hours are not urgent. Decide urgent from the caller's statements, "
+        "not from the assistant's referral wording. Do not diagnose or infer symptoms."
     ))
     context.add_message(role="user", content=transcript[-30_000:])
     model = inference.LLM(model="openai/gpt-5.4-mini", inference_class="low")
@@ -91,7 +107,10 @@ async def _analyse(turns: list[dict]) -> tuple[str | None, str | None, str | Non
     number = data.get("callbackNumber")
     if not isinstance(number, str) or not re.fullmatch(r"\+?[0-9 ()-]{9,30}", number):
         number = None
-    return summary[:500] if summary else None, data["contactReason"], number, True
+    urgent = data.get("urgent")
+    if type(urgent) is not bool:
+        urgent = _gave_urgent_referral(turns)
+    return summary[:500] if summary else None, data["contactReason"], number, urgent, True
 
 
 def _upload_audio(path: Path, room_id: str) -> tuple[str, int]:
@@ -154,10 +173,11 @@ async def deliver_session_report(report, *, caller: str | None, is_sip: bool, ag
         return
     turns = _turns(report)
     try:
-        summary, reason, supplied_number, analysis_ok = await _analyse(turns)
+        summary, reason, supplied_number, urgent, analysis_ok = await _analyse(turns)
     except Exception:
         logger.warning("LiveKit post-call analysis failed")
-        summary, reason, supplied_number, analysis_ok = None, None, None, False
+        summary, reason, supplied_number, urgent, analysis_ok = None, None, None, False, False
+    urgent = urgent or _gave_urgent_referral(turns)
     recording = {"state": "FAILED", "key": None, "bytes": None}
     if report.audio_recording_path:
         try:
@@ -174,7 +194,7 @@ async def deliver_session_report(report, *, caller: str | None, is_sip: bool, ag
         "caller": caller or supplied_number,
         "startedAt": _iso(started), "endedAt": _iso(report.timestamp),
         "endReason": _end_reason(report), "turns": turns, "summary": summary,
-        "contactReason": reason, "analysisOk": analysis_ok,
+        "contactReason": reason, "urgent": urgent, "analysisOk": analysis_ok,
         "recording": recording,
     }
     body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode()

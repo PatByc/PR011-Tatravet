@@ -69,6 +69,8 @@ The Upstash check must report results sourced from
 
 ## Acceptance and routing boundary
 
+For urgent veterinary situations, the agent gives a short referral to a 24-hour veterinary clinic and closes without promising a callback, transfer or urgent appointment. It reads today's opening status from the approved Upstash hours entry at session start; missing or holiday-specific hours remain unknown. Routine after-hours questions do not receive the urgent callback status. The post-call report now includes a boolean `urgent`; deploy the dashboard webhook that accepts it before deploying this worker. Check a synthetic urgent call and an ordinary after-hours question in an isolated environment before a live SIP acceptance call.
+
 Railway logs must show a persistent registered worker named
 `pr011-tatravet`, with no missing-variable, import, prompt, or authentication
 error. A successful build alone is insufficient.

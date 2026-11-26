@@ -28,7 +28,7 @@ export async function GET(request: Request) {
     const [latest, newCount, newCallbackCount] = await Promise.all([
       demo ? Promise.resolve(null) : db.call.findFirst({ where: reportWhere, orderBy: [{ reportedAt: "desc" }, { id: "desc" }], select: { reportedAt: true, id: true } }),
       !demo && cursor ? db.call.count({ where: newWhere }) : Promise.resolve(0),
-      !demo && cursor ? db.call.count({ where: { ...newWhere, followUp: "CALLBACK" } }) : Promise.resolve(0),
+      !demo && cursor ? db.call.count({ where: { ...newWhere, followUp: { in: ["CALLBACK", "CALLBACK_URGENT"] } } }) : Promise.resolve(0),
     ]);
     return json({ cursor: demo ? null : latest?.reportedAt ? { at: latest.reportedAt.toISOString(), id: latest.id } : { at: checkedAt.toISOString(), id: "" }, newCount, newCallbackCount });
   } catch (error) {
