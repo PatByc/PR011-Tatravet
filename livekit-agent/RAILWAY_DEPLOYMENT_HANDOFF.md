@@ -105,6 +105,8 @@ On a Thursday, `Jak pracujecie jutro?` must resolve to Friday and, if the
 approved opening-hours FAQ is returned, state 08:00–20:00. A blood-test FAQ
 result must never be used as the answer to an opening-hours question; if the
 opening-hours FAQ is absent, the agent must say the hours are unconfirmed.
+Then ask `A jaki jest dzień jutro?`. The answer must identify Friday and its
+Poland-local calendar date without an Upstash lookup or any clinic FAQ facts.
 For SIP calls, the agent's Context contains a validated caller number from
 `sip.phoneNumber` or the `sip_` identity. Browser sessions and calls without a
 valid number say it is unavailable. The agent must not read the number aloud.

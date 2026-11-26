@@ -3,9 +3,11 @@ from datetime import datetime, timezone
 
 from opening_hours import NO_CONFIRMED_HOURS, opening_hours_answer
 from temporal_context import (
+    calendar_only_answer,
     current_poland_context,
     faq_query_with_poland_date,
     is_opening_hours_question,
+    runtime_calendar_context,
 )
 
 HOURS_RESULT = {
@@ -27,6 +29,21 @@ class TemporalContextTests(unittest.TestCase):
     def test_session_context_uses_warsaw_time(self) -> None:
         instant = datetime(2026, 3, 28, 23, 30, tzinfo=timezone.utc)
         self.assertIn("Sunday, 2026-03-29, 00:30", current_poland_context(instant))
+
+    def test_runtime_context_and_calendar_only_answer(self) -> None:
+        thursday = datetime(2026, 11, 26, 10, 0, tzinfo=timezone.utc)
+        context = runtime_calendar_context(thursday)
+        self.assertIn("Tomorrow in Poland: piątek, 2026-11-27", context)
+        self.assertIn("Day after tomorrow in Poland: sobota, 2026-11-28", context)
+        self.assertEqual(
+            "Jutro będzie piątek, 27 listopada 2026 roku.",
+            calendar_only_answer("A jaki jest dzień jutro?", thursday),
+        )
+        self.assertEqual(
+            "Pojutrze będzie sobota, 28 listopada 2026 roku.",
+            calendar_only_answer("Jaka data będzie pojutrze?", thursday),
+        )
+        self.assertIsNone(calendar_only_answer("Jak pracujecie jutro?", thursday))
 
     def test_tomorrow_and_followup_resolve_from_polish_date(self) -> None:
         tuesday = datetime(2026, 11, 24, 10, 0, tzinfo=timezone.utc)

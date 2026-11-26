@@ -14,6 +14,10 @@ WEEKDAYS = (
     "sobota",
     "niedziela",
 )
+MONTHS = (
+    "stycznia", "lutego", "marca", "kwietnia", "maja", "czerwca",
+    "lipca", "sierpnia", "września", "października", "listopada", "grudnia",
+)
 WEEKDAY_FORMS = {
     "poniedziałek": 0,
     "poniedziałki": 0,
@@ -50,6 +54,8 @@ OPENING_HOURS = re.compile(
     re.IGNORECASE,
 )
 OPENING_HOURS_FAQ = "W jakich godzinach Tatravet jest otwarte w tygodniu, weekendy i święta?"
+CALENDAR_QUESTION = re.compile(r"\b(?:jaki|jaka|który|która)\b.*\b(?:dzień|data)\b", re.IGNORECASE)
+CALENDAR_RELATIVE = re.compile(r"\b(?:dziś|dzisiaj|jutro|pojutrze)\b", re.IGNORECASE)
 
 
 def poland_now(now: datetime | None = None) -> datetime:
@@ -62,6 +68,36 @@ def current_poland_context(now: datetime | None = None) -> str:
         "Current date and time in Poland: "
         f"{local.strftime('%A, %Y-%m-%d, %H:%M')} "
         "(Europe/Warsaw)."
+    )
+
+
+def runtime_calendar_context(now: datetime | None = None) -> str:
+    local = poland_now(now)
+    tomorrow = local.date() + timedelta(days=1)
+    after_tomorrow = local.date() + timedelta(days=2)
+    return (
+        f"- {current_poland_context(local)}\n"
+        f"- Tomorrow in Poland: {WEEKDAYS[tomorrow.weekday()]}, {tomorrow.isoformat()}.\n"
+        f"- Day after tomorrow in Poland: "
+        f"{WEEKDAYS[after_tomorrow.weekday()]}, {after_tomorrow.isoformat()}."
+    )
+
+
+def calendar_only_answer(question: str, now: datetime | None = None) -> str | None:
+    """Answer simple date questions from the Warsaw clock, without clinic retrieval."""
+    if not CALENDAR_QUESTION.search(question) or not CALENDAR_RELATIVE.search(question):
+        return None
+    if is_opening_hours_question(question):
+        return None
+    target = resolved_reference_date(question, now)
+    if target is None:
+        return None
+    word = CALENDAR_RELATIVE.search(question).group().casefold()
+    label = "Pojutrze" if word == "pojutrze" else ("Jutro" if word == "jutro" else "Dzisiaj")
+    verb = "jest" if label == "Dzisiaj" else "będzie"
+    return (
+        f"{label} {verb} {WEEKDAYS[target.weekday()]}, "
+        f"{target.day} {MONTHS[target.month - 1]} {target.year} roku."
     )
 
 

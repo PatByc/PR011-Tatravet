@@ -29,9 +29,10 @@ from livekit_upstash_faq import query_pr011_faq
 from livekit_eocr import deliver_session_report, reporting_configured
 from opening_hours import NO_CONFIRMED_HOURS, opening_hours_answer
 from temporal_context import (
-    current_poland_context,
+    calendar_only_answer,
     faq_query_with_poland_date,
     is_opening_hours_question,
+    runtime_calendar_context,
 )
 
 load_dotenv(ROOT / ".env")
@@ -110,7 +111,7 @@ def _session_instructions(addendum: str, caller_number: str | None = None) -> st
     phone_context = caller_number or "unavailable in call metadata"
     shared = SHARED_PROMPT.replace(
         marker,
-        f"{marker}- {current_poland_context()}\n"
+        f"{marker}{runtime_calendar_context()}\n"
         f"- Lead's phone number: {phone_context}\n",
         1,
     )
@@ -175,10 +176,13 @@ class GPTLiveClientAssistant(Agent):
     async def _resolve_delegation(self, delegation) -> None:
         started = time.perf_counter()
         question = delegation.pending_transcript.strip()
-        query = faq_query_with_poland_date(question)
         try:
-            results = await query_pr011_faq(query)
-            commentary, status = _grounded_answer(question, results)
+            if (calendar_answer := calendar_only_answer(question)) is not None:
+                commentary, status = calendar_answer, "calendar"
+            else:
+                query = faq_query_with_poland_date(question)
+                results = await query_pr011_faq(query)
+                commentary, status = _grounded_answer(question, results)
         except Exception:
             logger.exception("PR011 client-delegation lookup failed")
             commentary = _format_knowledge([])
@@ -222,10 +226,13 @@ class CascadedRAGAssistant(Agent):
         started = time.perf_counter()
         try:
             question = new_message.text_content
-            results = await query_pr011_faq(
-                faq_query_with_poland_date(question)
-            )
-            knowledge, status = _grounded_answer(question, results)
+            if (calendar_answer := calendar_only_answer(question)) is not None:
+                knowledge, status = calendar_answer, "calendar"
+            else:
+                results = await query_pr011_faq(
+                    faq_query_with_poland_date(question)
+                )
+                knowledge, status = _grounded_answer(question, results)
         except Exception:
             logger.exception("PR011 cascaded RAG lookup failed")
             knowledge = _format_knowledge([])

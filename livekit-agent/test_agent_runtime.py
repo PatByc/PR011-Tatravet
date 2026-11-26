@@ -33,12 +33,28 @@ class DelegationAudioTests(unittest.IsolatedAsyncioTestCase):
         context = instructions.split("# Context\n", 1)[1].split("# Capabilities", 1)[0]
         self.assertEqual(1, instructions.count("# Context\n"))
         self.assertIn("- Current date and time in Poland:", context)
+        self.assertIn("- Tomorrow in Poland:", context)
+        self.assertIn("- Day after tomorrow in Poland:", context)
         self.assertIn("- Lead's phone number: +48123456789", context)
+
+    async def test_calendar_question_does_not_query_upstash(self) -> None:
+        assistant = GPTLiveClientAssistant()
+        delegation = SimpleNamespace(id="calendar-test", pending_transcript="A jaki jest dzień jutro?")
+        with (
+            patch("agent.calendar_only_answer", return_value="Jutro będzie piątek."),
+            patch("agent.query_pr011_faq", new_callable=AsyncMock) as lookup,
+            patch.object(Agent, "duplex_session", new_callable=PropertyMock) as duplex,
+        ):
+            await assistant._resolve_delegation(delegation)
+        lookup.assert_not_awaited()
+        duplex.return_value.append_commentary.assert_called_once_with(
+            "Jutro będzie piątek.", delegation_id="calendar-test"
+        )
 
     def test_runtime_date_is_recomputed_for_each_session(self) -> None:
         with patch(
-            "agent.current_poland_context",
-            side_effect=["Current date and time in Poland: first", "Current date and time in Poland: second"],
+            "agent.runtime_calendar_context",
+            side_effect=["- Current date and time in Poland: first", "- Current date and time in Poland: second"],
         ):
             first = GPTLiveClientAssistant().instructions
             second = GPTLiveClientAssistant().instructions
