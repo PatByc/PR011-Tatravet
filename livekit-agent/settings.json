@@ -12,7 +12,7 @@
       "gpt-live-client": {
         "pipeline": "gpt-live-client",
         "model": "openai/gpt-live-1",
-        "voice": "marin",
+        "voice": "cedar",
         "delegation": "client",
         "knowledge": "upstash-pr011-faq"
       },
