@@ -5,7 +5,6 @@ import os
 import re
 import sys
 import time
-import unicodedata
 from collections.abc import AsyncIterable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -102,46 +101,31 @@ prompt = PROMPT_FILE.read_text(encoding="utf-8")
 SHARED_PROMPT = _markdown_block(prompt, "System Prompt")
 GPT_LIVE_ADDENDUM = _markdown_block(prompt, "GPT-Live Client Addendum")
 CASCADE_ADDENDUM = _markdown_block(prompt, "Cascaded RAG Addendum")
+DELEGATION_SAFETY_PROMPT = _markdown_block(prompt, "Delegation Safety Classifier")
 FIRST_MESSAGE = _markdown_block(prompt, "First Message")
 URGENT_REFERRAL_MATCH = re.search(r"Immediately say:\n„([^”]+)”", SHARED_PROMPT)
 if URGENT_REFERRAL_MATCH is None:
     raise ValueError("Missing urgent veterinary referral in the shared prompt")
 URGENT_REFERRAL = URGENT_REFERRAL_MATCH.group(1)
+URGENT_POLICY = SHARED_PROMPT.split("## Safety priority: urgent veterinary situations", 1)[1].split("## 1. Greeting", 1)[0].strip()
+SAFETY_CHECK_UNAVAILABLE = (
+    "Przepraszam, proszę powtórzyć pytanie. Jeśli zwierzę potrzebuje pilnej "
+    "pomocy, proszę niezwłocznie "
+    "skontaktować się z najbliższą całodobową lecznicą weterynaryjną."
+)
 
 
-def _plain_polish(text: str) -> str:
-    return "".join(
-        character for character in unicodedata.normalize("NFD", text.casefold().replace("ł", "l"))
-        if unicodedata.category(character) != "Mn"
-    )
-
-
-def _urgent_veterinary_request(text: str, clinic_status: str = "unknown") -> bool:
-    """Route clear current animal emergencies before asking the clinic FAQ."""
-    words = _plain_polish(text)
-    animal = bool(re.search(
-        r"\b(pies|psa|psu|psie|kot|kota|kotu|zwierze|zwierzecia|szczeniak|szczenie|suka|suke)\b",
-        words,
-    ))
-    past_or_hypothetical = bool(re.search(
-        r"gdyby|co jesli|co gdy|hipotetycz|teoretycz|czy w razie|"
-        r"miesiac temu|tydzien temu|wczoraj|kiedys|dawno|rok temu",
-        words,
-    ))
-    if past_or_hypothetical and not re.search(r"\b(teraz|wlasnie|dzis|dzisiaj|aktualnie)\b", words):
-        return False
-    current_symptom = animal and bool(re.search(
-        r"umier|nie oddych|dusi|krwaw|drgawk|nieprzytom|zatruc|otru|zaslab|traci przytomn|trudnosci z oddych",
-        words,
-    ))
-    if current_symptom:
-        return True
-    accident = bool(re.search(r"potrac|uderz\w* samochod|\bwypad(ek|ku|ki)\b", words))
-    if accident and not re.search(r"nie (potrac|uderz)|nie mam psa", words):
-        return animal or "potrac" in words
-    closed = clinic_status == "closed" or bool(re.search(r"jestescie zamknieci|klinika jest zamknieta|po godzinach", words))
-    cannot_wait = bool(re.search(r"nie moze czekac|potrzebuje pomocy teraz|pilnej pomocy|pomocy przed otwarciem", words))
-    return animal and closed and cannot_wait
+async def _urgent_veterinary_request(text: str, clinic_status: str = "unknown") -> bool:
+    """Use the prompt's safety policy to route a delegated turn before FAQ retrieval."""
+    context = ChatContext()
+    context.add_message(role="system", content=f"{DELEGATION_SAFETY_PROMPT}\n{URGENT_POLICY}")
+    context.add_message(role="user", content=f"Clinic status: {clinic_status}\nCaller: {text}")
+    model = inference.LLM(model="openai/gpt-5.4-mini", inference_class="low")
+    response = await asyncio.wait_for(model.chat(chat_ctx=context).collect(), timeout=8)
+    result = json.loads(response.text)
+    if not isinstance(result, dict) or type(result.get("urgent")) is not bool:
+        raise ValueError("Invalid urgent request classification")
+    return result["urgent"]
 
 
 def _session_instructions(addendum: str, caller_number: str | None = None, clinic_status: str = "unknown") -> str:
@@ -219,7 +203,9 @@ class GPTLiveClientAssistant(Agent):
         started = time.perf_counter()
         question = delegation.pending_transcript.strip()
         try:
-            if _urgent_veterinary_request(question, self._clinic_status):
+            if not question:
+                commentary, status = SAFETY_CHECK_UNAVAILABLE, "safety_check_unavailable"
+            elif await _urgent_veterinary_request(question, self._clinic_status):
                 commentary, status = URGENT_REFERRAL, "urgent"
             elif (calendar_answer := calendar_only_answer(question)) is not None:
                 commentary, status = calendar_answer, "calendar"
@@ -228,9 +214,9 @@ class GPTLiveClientAssistant(Agent):
                 results = await query_pr011_faq(query)
                 commentary, status = _grounded_answer(question, results)
         except Exception:
-            logger.exception("PR011 client-delegation lookup failed")
-            commentary = _format_knowledge([])
-            status = "error"
+            logger.warning("PR011 client-delegation validation or lookup failed")
+            commentary = SAFETY_CHECK_UNAVAILABLE
+            status = "safety_check_unavailable"
 
         duration_ms = round((time.perf_counter() - started) * 1000)
         logger.info(

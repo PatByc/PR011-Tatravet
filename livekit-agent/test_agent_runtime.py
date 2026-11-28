@@ -13,7 +13,7 @@ for name in (
 ):
     os.environ.setdefault(name, "test-only")
 
-from agent import GPTLiveClientAssistant, URGENT_REFERRAL, _sip_caller_number, _urgent_veterinary_request  # noqa: E402
+from agent import GPTLiveClientAssistant, SAFETY_CHECK_UNAVAILABLE, URGENT_REFERRAL, _sip_caller_number, _urgent_veterinary_request  # noqa: E402
 from livekit import rtc  # noqa: E402
 from livekit.agents import Agent  # noqa: E402
 
@@ -41,6 +41,7 @@ class DelegationAudioTests(unittest.IsolatedAsyncioTestCase):
         assistant = GPTLiveClientAssistant()
         delegation = SimpleNamespace(id="calendar-test", pending_transcript="A jaki jest dzień jutro?")
         with (
+            patch("agent._urgent_veterinary_request", new_callable=AsyncMock, return_value=False),
             patch("agent.calendar_only_answer", return_value="Jutro będzie piątek."),
             patch("agent.query_pr011_faq", new_callable=AsyncMock) as lookup,
             patch.object(Agent, "duplex_session", new_callable=PropertyMock) as duplex,
@@ -55,11 +56,13 @@ class DelegationAudioTests(unittest.IsolatedAsyncioTestCase):
         assistant = GPTLiveClientAssistant()
         delegation = SimpleNamespace(id="urgent-test", pending_transcript="Potrąciłam samochodem swojego psa. Co robić?")
         with (
+            patch("agent._urgent_veterinary_request", new_callable=AsyncMock, return_value=True) as classify,
             patch("agent.query_pr011_faq", new_callable=AsyncMock) as lookup,
             patch.object(Agent, "duplex_session", new_callable=PropertyMock) as duplex,
         ):
             await assistant._resolve_delegation(delegation)
         lookup.assert_not_awaited()
+        classify.assert_awaited_once_with(delegation.pending_transcript, "unknown")
         instruction = duplex.return_value.append_instructions.call_args.args[0]
         self.assertIn("urgent veterinary situation", instruction)
         self.assertIn("Do not use clinic FAQ facts", instruction)
@@ -71,6 +74,7 @@ class DelegationAudioTests(unittest.IsolatedAsyncioTestCase):
         assistant = GPTLiveClientAssistant(clinic_status="closed")
         delegation = SimpleNamespace(id="hours-test", pending_transcript="Jesteście zamknięci. O której jutro otwieracie?")
         with (
+            patch("agent._urgent_veterinary_request", new_callable=AsyncMock, return_value=False),
             patch("agent.calendar_only_answer", return_value=None),
             patch("agent.query_pr011_faq", new_callable=AsyncMock, return_value=[]) as lookup,
             patch.object(Agent, "duplex_session", new_callable=PropertyMock) as duplex,
@@ -79,28 +83,28 @@ class DelegationAudioTests(unittest.IsolatedAsyncioTestCase):
         lookup.assert_awaited_once()
         self.assertNotEqual(URGENT_REFERRAL, duplex.return_value.append_commentary.call_args.args[0])
 
-    def test_urgent_routing_distinguishes_current_and_past_animal_cases(self) -> None:
-        urgent = (
-            "Potrąciłem swojego psa.",
-            "Uderzyłam samochodem swojego psa.",
-            "Mój pies umiera, co mam robić zanim ktoś oddzwoni?",
-            "Mój kot ma trudności z oddychaniem.",
-            "Mój pies potrzebuje pomocy teraz.",
+    async def test_classifier_uses_prompt_policy_and_boolean_result(self) -> None:
+        model = Mock()
+        model.chat.return_value.collect = AsyncMock(return_value=SimpleNamespace(text='{"urgent": true}'))
+        with patch("agent.inference.LLM", return_value=model):
+            self.assertTrue(await _urgent_veterinary_request("Potrąciłam psa.", clinic_status="closed"))
+        context = model.chat.call_args.kwargs["chat_ctx"].to_dict()
+        self.assertIn("If the caller describes a current accident", str(context))
+        self.assertIn("Clinic status: closed", str(context))
+
+    async def test_classifier_failure_does_not_query_faq(self) -> None:
+        assistant = GPTLiveClientAssistant()
+        delegation = SimpleNamespace(id="unavailable-test", pending_transcript="Mój pies potrzebuje pomocy")
+        with (
+            patch("agent._urgent_veterinary_request", new_callable=AsyncMock, side_effect=TimeoutError),
+            patch("agent.query_pr011_faq", new_callable=AsyncMock) as lookup,
+            patch.object(Agent, "duplex_session", new_callable=PropertyMock) as duplex,
+        ):
+            await assistant._resolve_delegation(delegation)
+        lookup.assert_not_awaited()
+        duplex.return_value.append_commentary.assert_called_once_with(
+            SAFETY_CHECK_UNAVAILABLE, delegation_id="unavailable-test"
         )
-        for request in urgent:
-            with self.subTest(request=request):
-                self.assertTrue(_urgent_veterinary_request(request, clinic_status="closed"))
-        routine = (
-            "Jesteście zamknięci. O której jutro otwieracie?",
-            "Mój pies został potrącony miesiąc temu i jest już pod opieką lekarza.",
-            "Co jeśli mój pies zostanie potrącony?",
-            "Nie potrąciłam psa, chcę zapytać o adres.",
-            "Mój pies krwawił miesiąc temu, chcę zapytać o wyniki.",
-            "Mój pies ma problem z wypadaniem sierści. Kiedy jesteście otwarci?",
-        )
-        for request in routine:
-            with self.subTest(request=request):
-                self.assertFalse(_urgent_veterinary_request(request, clinic_status="closed"))
 
     def test_runtime_date_is_recomputed_for_each_session(self) -> None:
         with patch(
