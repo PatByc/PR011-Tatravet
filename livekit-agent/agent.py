@@ -5,6 +5,7 @@ import os
 import re
 import sys
 import time
+import unicodedata
 from collections.abc import AsyncIterable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -102,6 +103,45 @@ SHARED_PROMPT = _markdown_block(prompt, "System Prompt")
 GPT_LIVE_ADDENDUM = _markdown_block(prompt, "GPT-Live Client Addendum")
 CASCADE_ADDENDUM = _markdown_block(prompt, "Cascaded RAG Addendum")
 FIRST_MESSAGE = _markdown_block(prompt, "First Message")
+URGENT_REFERRAL_MATCH = re.search(r"Immediately say:\n„([^”]+)”", SHARED_PROMPT)
+if URGENT_REFERRAL_MATCH is None:
+    raise ValueError("Missing urgent veterinary referral in the shared prompt")
+URGENT_REFERRAL = URGENT_REFERRAL_MATCH.group(1)
+
+
+def _plain_polish(text: str) -> str:
+    return "".join(
+        character for character in unicodedata.normalize("NFD", text.casefold().replace("ł", "l"))
+        if unicodedata.category(character) != "Mn"
+    )
+
+
+def _urgent_veterinary_request(text: str, clinic_status: str = "unknown") -> bool:
+    """Route clear current animal emergencies before asking the clinic FAQ."""
+    words = _plain_polish(text)
+    animal = bool(re.search(
+        r"\b(pies|psa|psu|psie|kot|kota|kotu|zwierze|zwierzecia|szczeniak|szczenie|suka|suke)\b",
+        words,
+    ))
+    past_or_hypothetical = bool(re.search(
+        r"gdyby|co jesli|co gdy|hipotetycz|teoretycz|czy w razie|"
+        r"miesiac temu|tydzien temu|wczoraj|kiedys|dawno|rok temu",
+        words,
+    ))
+    if past_or_hypothetical and not re.search(r"\b(teraz|wlasnie|dzis|dzisiaj|aktualnie)\b", words):
+        return False
+    current_symptom = animal and bool(re.search(
+        r"umier|nie oddych|dusi|krwaw|drgawk|nieprzytom|zatruc|otru|zaslab|traci przytomn|trudnosci z oddych",
+        words,
+    ))
+    if current_symptom:
+        return True
+    accident = bool(re.search(r"potrac|uderz\w* samochod|\bwypad(ek|ku|ki)\b", words))
+    if accident and not re.search(r"nie (potrac|uderz)|nie mam psa", words):
+        return animal or "potrac" in words
+    closed = clinic_status == "closed" or bool(re.search(r"jestescie zamknieci|klinika jest zamknieta|po godzinach", words))
+    cannot_wait = bool(re.search(r"nie moze czekac|potrzebuje pomocy teraz|pilnej pomocy|pomocy przed otwarciem", words))
+    return animal and closed and cannot_wait
 
 
 def _session_instructions(addendum: str, caller_number: str | None = None, clinic_status: str = "unknown") -> str:
@@ -149,6 +189,7 @@ class GPTLiveClientAssistant(Agent):
         super().__init__(
             instructions=_session_instructions(GPT_LIVE_ADDENDUM, caller_number, clinic_status)
         )
+        self._clinic_status = clinic_status
         self._pending_delegations: set[str] = set()
 
     async def on_enter(self) -> None:
@@ -178,7 +219,9 @@ class GPTLiveClientAssistant(Agent):
         started = time.perf_counter()
         question = delegation.pending_transcript.strip()
         try:
-            if (calendar_answer := calendar_only_answer(question)) is not None:
+            if _urgent_veterinary_request(question, self._clinic_status):
+                commentary, status = URGENT_REFERRAL, "urgent"
+            elif (calendar_answer := calendar_only_answer(question)) is not None:
                 commentary, status = calendar_answer, "calendar"
             else:
                 query = faq_query_with_poland_date(question)
@@ -199,12 +242,15 @@ class GPTLiveClientAssistant(Agent):
             },
         )
         try:
-            self.duplex_session.append_instructions(
+            instruction = (
+                "This is an urgent veterinary situation. Speak only the supplied referral, "
+                "then end the call. Do not use clinic FAQ facts, offer a callback, or ask questions."
+                if status == "urgent" else
                 "For this delegated question, speak only the approved answer supplied by "
                 "the client. Start with its first factual word. Do not add a preamble, "
-                "status update, or fact from another topic.",
-                delegation_id=delegation.id,
+                "status update, or fact from another topic."
             )
+            self.duplex_session.append_instructions(instruction, delegation_id=delegation.id)
             self.duplex_session.append_commentary(
                 commentary,
                 delegation_id=delegation.id,

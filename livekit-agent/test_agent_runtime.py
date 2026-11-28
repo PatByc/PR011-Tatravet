@@ -13,7 +13,7 @@ for name in (
 ):
     os.environ.setdefault(name, "test-only")
 
-from agent import GPTLiveClientAssistant, _sip_caller_number  # noqa: E402
+from agent import GPTLiveClientAssistant, URGENT_REFERRAL, _sip_caller_number, _urgent_veterinary_request  # noqa: E402
 from livekit import rtc  # noqa: E402
 from livekit.agents import Agent  # noqa: E402
 
@@ -50,6 +50,57 @@ class DelegationAudioTests(unittest.IsolatedAsyncioTestCase):
         duplex.return_value.append_commentary.assert_called_once_with(
             "Jutro będzie piątek.", delegation_id="calendar-test"
         )
+
+    async def test_urgent_delegation_uses_prompt_referral_without_faq(self) -> None:
+        assistant = GPTLiveClientAssistant()
+        delegation = SimpleNamespace(id="urgent-test", pending_transcript="Potrąciłam samochodem swojego psa. Co robić?")
+        with (
+            patch("agent.query_pr011_faq", new_callable=AsyncMock) as lookup,
+            patch.object(Agent, "duplex_session", new_callable=PropertyMock) as duplex,
+        ):
+            await assistant._resolve_delegation(delegation)
+        lookup.assert_not_awaited()
+        instruction = duplex.return_value.append_instructions.call_args.args[0]
+        self.assertIn("urgent veterinary situation", instruction)
+        self.assertIn("Do not use clinic FAQ facts", instruction)
+        duplex.return_value.append_commentary.assert_called_once_with(
+            URGENT_REFERRAL, delegation_id="urgent-test"
+        )
+
+    async def test_routine_after_hours_delegation_still_uses_faq(self) -> None:
+        assistant = GPTLiveClientAssistant(clinic_status="closed")
+        delegation = SimpleNamespace(id="hours-test", pending_transcript="Jesteście zamknięci. O której jutro otwieracie?")
+        with (
+            patch("agent.calendar_only_answer", return_value=None),
+            patch("agent.query_pr011_faq", new_callable=AsyncMock, return_value=[]) as lookup,
+            patch.object(Agent, "duplex_session", new_callable=PropertyMock) as duplex,
+        ):
+            await assistant._resolve_delegation(delegation)
+        lookup.assert_awaited_once()
+        self.assertNotEqual(URGENT_REFERRAL, duplex.return_value.append_commentary.call_args.args[0])
+
+    def test_urgent_routing_distinguishes_current_and_past_animal_cases(self) -> None:
+        urgent = (
+            "Potrąciłem swojego psa.",
+            "Uderzyłam samochodem swojego psa.",
+            "Mój pies umiera, co mam robić zanim ktoś oddzwoni?",
+            "Mój kot ma trudności z oddychaniem.",
+            "Mój pies potrzebuje pomocy teraz.",
+        )
+        for request in urgent:
+            with self.subTest(request=request):
+                self.assertTrue(_urgent_veterinary_request(request, clinic_status="closed"))
+        routine = (
+            "Jesteście zamknięci. O której jutro otwieracie?",
+            "Mój pies został potrącony miesiąc temu i jest już pod opieką lekarza.",
+            "Co jeśli mój pies zostanie potrącony?",
+            "Nie potrąciłam psa, chcę zapytać o adres.",
+            "Mój pies krwawił miesiąc temu, chcę zapytać o wyniki.",
+            "Mój pies ma problem z wypadaniem sierści. Kiedy jesteście otwarci?",
+        )
+        for request in routine:
+            with self.subTest(request=request):
+                self.assertFalse(_urgent_veterinary_request(request, clinic_status="closed"))
 
     def test_runtime_date_is_recomputed_for_each_session(self) -> None:
         with patch(
