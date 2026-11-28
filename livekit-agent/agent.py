@@ -5,7 +5,6 @@ import os
 import re
 import sys
 import time
-from collections.abc import AsyncIterable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -25,7 +24,7 @@ from livekit.agents import (
     room_io,
 )
 
-from livekit_upstash_faq import query_pr011_faq
+from livekit_upstash_faq import query_pr011_faq, search_pr011_faq
 from livekit_eocr import deliver_session_report, reporting_configured
 from opening_hours import NO_CONFIRMED_HOURS, current_clinic_status, opening_hours_answer
 from temporal_context import (
@@ -99,33 +98,10 @@ def _grounded_answer(question: str, results: list[dict]) -> tuple[str, str]:
 
 prompt = PROMPT_FILE.read_text(encoding="utf-8")
 SHARED_PROMPT = _markdown_block(prompt, "System Prompt")
-GPT_LIVE_ADDENDUM = _markdown_block(prompt, "GPT-Live Client Addendum")
+GPT_LIVE_ADDENDUM = _markdown_block(prompt, "GPT-Live Addendum")
+GPT_LIVE_BACKEND_ADDENDUM = _markdown_block(prompt, "GPT-Live Backend Addendum")
 CASCADE_ADDENDUM = _markdown_block(prompt, "Cascaded RAG Addendum")
-DELEGATION_SAFETY_PROMPT = _markdown_block(prompt, "Delegation Safety Classifier")
 FIRST_MESSAGE = _markdown_block(prompt, "First Message")
-URGENT_REFERRAL_MATCH = re.search(r"Immediately say:\n„([^”]+)”", SHARED_PROMPT)
-if URGENT_REFERRAL_MATCH is None:
-    raise ValueError("Missing urgent veterinary referral in the shared prompt")
-URGENT_REFERRAL = URGENT_REFERRAL_MATCH.group(1)
-URGENT_POLICY = SHARED_PROMPT.split("## Safety priority: urgent veterinary situations", 1)[1].split("## 1. Greeting", 1)[0].strip()
-SAFETY_CHECK_UNAVAILABLE = (
-    "Przepraszam, proszę powtórzyć pytanie. Jeśli zwierzę potrzebuje pilnej "
-    "pomocy, proszę niezwłocznie "
-    "skontaktować się z najbliższą całodobową lecznicą weterynaryjną."
-)
-
-
-async def _urgent_veterinary_request(text: str, clinic_status: str = "unknown") -> bool:
-    """Use the prompt's safety policy to route a delegated turn before FAQ retrieval."""
-    context = ChatContext()
-    context.add_message(role="system", content=f"{DELEGATION_SAFETY_PROMPT}\n{URGENT_POLICY}")
-    context.add_message(role="user", content=f"Clinic status: {clinic_status}\nCaller: {text}")
-    model = inference.LLM(model="openai/gpt-5.4-mini", inference_class="low")
-    response = await asyncio.wait_for(model.chat(chat_ctx=context).collect(), timeout=8)
-    result = json.loads(response.text)
-    if not isinstance(result, dict) or type(result.get("urgent")) is not bool:
-        raise ValueError("Invalid urgent request classification")
-    return result["urgent"]
 
 
 def _session_instructions(addendum: str, caller_number: str | None = None, clinic_status: str = "unknown") -> str:
@@ -168,81 +144,12 @@ except KeyError as exc:
     ) from exc
 
 
-class GPTLiveClientAssistant(Agent):
+class GPTLiveAssistant(Agent):
     def __init__(self, caller_number: str | None = None, clinic_status: str = "unknown") -> None:
         super().__init__(
-            instructions=_session_instructions(GPT_LIVE_ADDENDUM, caller_number, clinic_status)
+            instructions=_session_instructions(GPT_LIVE_ADDENDUM, caller_number, clinic_status),
+            tools=[search_pr011_faq],
         )
-        self._clinic_status = clinic_status
-        self._pending_delegations: set[str] = set()
-
-    async def on_enter(self) -> None:
-        self.duplex_session.on("delegation_created", self._on_delegation)
-        self.duplex_session.append_instructions(
-            "After delegating a factual question, remain silent until the client result. "
-            "When it arrives, start with the supplied answer immediately. "
-            "Do not add an acknowledgment, filler, progress phrase, or unrelated fact."
-        )
-
-    def _on_delegation(self, delegation) -> None:
-        self._pending_delegations.add(delegation.id)
-        # Stop already queued filler; the audio node drops new frames until the
-        # approved answer has been returned to GPT-Live.
-        if (audio_output := self.session.output.audio) is not None:
-            audio_output.clear_buffer()
-        asyncio.create_task(self._resolve_delegation(delegation))
-
-    async def realtime_audio_output_node(
-        self, audio: AsyncIterable[rtc.AudioFrame], model_settings
-    ) -> AsyncIterable[rtc.AudioFrame]:
-        async for frame in audio:
-            if not self._pending_delegations:
-                yield frame
-
-    async def _resolve_delegation(self, delegation) -> None:
-        started = time.perf_counter()
-        question = delegation.pending_transcript.strip()
-        try:
-            if not question:
-                commentary, status = SAFETY_CHECK_UNAVAILABLE, "safety_check_unavailable"
-            elif await _urgent_veterinary_request(question, self._clinic_status):
-                commentary, status = URGENT_REFERRAL, "urgent"
-            elif (calendar_answer := calendar_only_answer(question)) is not None:
-                commentary, status = calendar_answer, "calendar"
-            else:
-                query = faq_query_with_poland_date(question)
-                results = await query_pr011_faq(query)
-                commentary, status = _grounded_answer(question, results)
-        except Exception:
-            logger.warning("PR011 client-delegation validation or lookup failed")
-            commentary = SAFETY_CHECK_UNAVAILABLE
-            status = "safety_check_unavailable"
-
-        duration_ms = round((time.perf_counter() - started) * 1000)
-        logger.info(
-            "PR011 client delegation resolved",
-            extra={
-                "benchmark_variant": variant_name,
-                "knowledge_status": status,
-                "knowledge_duration_ms": duration_ms,
-            },
-        )
-        try:
-            instruction = (
-                "This is an urgent veterinary situation. Speak only the supplied referral, "
-                "then end the call. Do not use clinic FAQ facts, offer a callback, or ask questions."
-                if status == "urgent" else
-                "For this delegated question, speak only the approved answer supplied by "
-                "the client. Start with its first factual word. Do not add a preamble, "
-                "status update, or fact from another topic."
-            )
-            self.duplex_session.append_instructions(instruction, delegation_id=delegation.id)
-            self.duplex_session.append_commentary(
-                commentary,
-                delegation_id=delegation.id,
-            )
-        finally:
-            self._pending_delegations.discard(delegation.id)
 
 
 class CascadedRAGAssistant(Agent):
@@ -358,14 +265,24 @@ async def entrypoint(ctx: agents.JobContext):
             clinic_status = current_clinic_status(hours)
         except Exception:
             logger.warning("Approved opening hours unavailable at session start")
+        backend_instructions = _session_instructions(
+            GPT_LIVE_BACKEND_ADDENDUM, caller_number, clinic_status
+        )
         session = AgentSession(
             llm=inference.DuplexModel(
                 model=variant["model"],
                 voice=variant["voice"],
-                extra_kwargs={"delegation": "client"},
+                extra_kwargs={
+                    "delegation": variant["delegation"],
+                    "responses_options": {
+                        "model": variant["backend_model"],
+                        "instructions": backend_instructions,
+                        "parallel_tool_calls": False,
+                    },
+                },
             )
         )
-        assistant: Agent = GPTLiveClientAssistant(caller_number, clinic_status)
+        assistant: Agent = GPTLiveAssistant(caller_number, clinic_status)
     elif pipeline == "cascade-rag":
         session = AgentSession(
             stt=inference.STT(

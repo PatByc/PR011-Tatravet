@@ -13,7 +13,8 @@
         "pipeline": "gpt-live-client",
         "model": "openai/gpt-live-1",
         "voice": "cedar",
-        "delegation": "client",
+        "delegation": "responses",
+        "backend_model": "gpt-5.4-mini",
         "knowledge": "upstash-pr011-faq"
       },
       "cascade-rag": {

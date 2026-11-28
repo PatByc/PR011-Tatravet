@@ -3,11 +3,11 @@
 This directory is the deployable copy of the PR011 GPT-Live agent from
 `PatByc/voice-ai-agentic-builder` commit
 `1903d46f30f41a9377183e8c0e1ce5a67dd45d95`. This copy runs as its own
-Railway service. Its GPT-Live voice is Cedar, and its prompt instructs the
-agent to stay silent while client delegation is pending. Opening-hours questions
-now use a specific FAQ query and accept only the matching approved result; an
-unrelated result yields an unconfirmed-hours answer. The Upstash index and pinned
-dependencies remain the same.
+Railway service. Its GPT-Live voice is Cedar. The worker uses native Responses
+delegation: the backend applies the urgent veterinary policy before deciding
+whether to call the approved FAQ tool. The historical variant key remains
+`gpt-live-client` to keep the existing Railway variable valid. The Upstash
+index, `topK: 3`, and pinned dependencies remain the same.
 
 ## Railway service
 
@@ -64,8 +64,9 @@ python test_upstash_faq.py
 
 The Upstash check must report results sourced from
 `KB_PR011_Tatravet_v2.md`. `settings.json` must select `gpt-live-client`,
-`openai/gpt-live-1`, Cedar (`cedar`), `delegation="client"`, and agent name
-`pr011-tatravet`. The query uses namespace `pr011-faq` with `topK: 3`.
+`openai/gpt-live-1`, Cedar (`cedar`), `delegation="responses"`, backend model
+`gpt-5.4-mini`, and agent name `pr011-tatravet`. The query uses namespace
+`pr011-faq` with `topK: 3`.
 
 ## Acceptance and routing boundary
 
@@ -76,9 +77,8 @@ Railway logs must show a persistent registered worker named
 error. A successful build alone is insufficient.
 
 Before any SIP change, dispatch a browser/Agent Console room to that name and
-check the greeting plays once, Cedar speech, one successful Upstash delegation
-for the Saturday-hours question, `knowledge_status: ok`, logged Upstash
-duration, factual answers without a retrieval preamble, and farewell/room
+check the greeting plays once, Cedar speech, a relevant FAQ tool result for
+the Saturday-hours question, factual answers without a retrieval preamble, and farewell/room
 closure. Use these exact caller prompts:
 
 ```text
